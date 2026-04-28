@@ -1,0 +1,79 @@
+const mongoose = require('mongoose');
+
+// A single line in an accounting voucher (debit/credit entry)
+const entrySchema = new mongoose.Schema({
+  ledger:     { type: mongoose.Schema.Types.ObjectId, ref: 'Ledger', required: true },
+  type:       { type: String, enum: ['Dr', 'Cr'], required: true },
+  amount:     { type: Number, required: true, min: 0 },
+  narration:  { type: String },
+  costCentre: { type: mongoose.Schema.Types.ObjectId, ref: 'CostCentre' },
+  billRef:    { type: String },
+  billAmount: { type: Number },
+}, { _id: false });
+
+// Stock line in a sales/purchase invoice
+const stockLineSchema = new mongoose.Schema({
+  item:       { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem', required: true },
+  godown:     { type: mongoose.Schema.Types.ObjectId, ref: 'Godown' },
+  qty:        { type: Number, required: true },
+  unit:       { type: mongoose.Schema.Types.ObjectId, ref: 'Unit' },
+  rate:       { type: Number, required: true },
+  amount:     { type: Number, required: true },
+  discount:   { type: Number, default: 0 },
+  discountPct:{ type: Number, default: 0 },
+  hsnCode:    { type: String },
+  gstRate:    { type: Number, default: 0 },
+  cgst:       { type: Number, default: 0 },
+  sgst:       { type: Number, default: 0 },
+  igst:       { type: Number, default: 0 },
+  cess:       { type: Number, default: 0 },
+  batchNo:    { type: String },
+  expiry:     { type: Date },
+}, { _id: false });
+
+const voucherSchema = new mongoose.Schema({
+  company:      { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
+  voucherType:  {
+    type: String,
+    enum: ['Sales', 'Purchase', 'Payment', 'Receipt', 'Journal', 'Contra',
+           'CreditNote', 'DebitNote', 'StockJournal', 'DeliveryNote', 'ReceiptNote'],
+    required: true,
+  },
+  voucherNo:    { type: String, required: true },
+  date:         { type: Date, required: true },
+  reference:    { type: String },
+  narration:    { type: String },
+  // Accounting entries
+  entries:      [entrySchema],
+  // Stock items (for Sales/Purchase/StockJournal)
+  items:        [stockLineSchema],
+  // Party details (for Sales/Purchase)
+  party:        { type: mongoose.Schema.Types.ObjectId, ref: 'Ledger' },
+  partyGstin:   { type: String },
+  // GST
+  placeOfSupply:{ type: String },
+  isIGST:       { type: Boolean, default: false },
+  reverseCharge:{ type: Boolean, default: false },
+  // Invoice totals
+  subtotal:     { type: Number, default: 0 },
+  totalDiscount:{ type: Number, default: 0 },
+  totalCGST:    { type: Number, default: 0 },
+  totalSGST:    { type: Number, default: 0 },
+  totalIGST:    { type: Number, default: 0 },
+  totalCess:    { type: Number, default: 0 },
+  roundOff:     { type: Number, default: 0 },
+  total:        { type: Number, default: 0 },
+  // e-Invoice
+  irn:          { type: String },
+  ewaybill:     { type: String },
+  // Flags
+  isCancelled:  { type: Boolean, default: false },
+  cancelReason: { type: String },
+  isAmended:    { type: Boolean, default: false },
+  amendedFrom:  { type: mongoose.Schema.Types.ObjectId, ref: 'Voucher' },
+}, { timestamps: true });
+
+voucherSchema.index({ company: 1, voucherType: 1, voucherNo: 1 }, { unique: true });
+voucherSchema.index({ company: 1, date: -1 });
+
+module.exports = mongoose.model('Voucher', voucherSchema);

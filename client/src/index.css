@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #1a1a2e;
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+html { scroll-behavior: smooth; }
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #003087 0%, #ff6600 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-gradient-tally {
+    background: linear-gradient(135deg, #003087 0%, #0051cc 100%);
+  }
+  .section-padding {
+    @apply py-16 px-4 md:px-8 lg:px-16;
+  }
+}
