@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useCompany } from '../../../context/CompanyContext';
+import { useState, useEffect, useCallback } from 'react';
+import { useCompany } from '../../../context/useCompany';
 import api from '../../../utils/api';
-import { FiPlay, FiDownload } from 'react-icons/fi';
+import { FiPlay } from 'react-icons/fi';
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -15,30 +15,40 @@ export default function ProcessPayroll() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    if (!company) return;
-    api.get(`/companies/${company._id}/payroll/employees`).then(r => setEmployees(r.data.data || []));
-    loadPayslips();
-  }, [company, month, year]);
-
-  const loadPayslips = () => {
+  const loadPayslips = useCallback(() => {
     if (!company) return;
     setLoading(true);
     api.get(`/companies/${company._id}/payroll/payslips?month=${month}&year=${year}`)
       .then(r => setResults(r.data.data || []))
       .finally(() => setLoading(false));
-  };
+  }, [company, month, year]);
+
+  useEffect(() => {
+    if (!company) return undefined;
+    const id = setTimeout(() => {
+      api.get(`/companies/${company._id}/payroll/employees`).then(r => setEmployees(r.data.data || []));
+      loadPayslips();
+    }, 0);
+    return () => clearTimeout(id);
+  }, [company, loadPayslips]);
 
   const processAll = async () => {
     if (!employees.length) return;
     setProcessing(true);
-    for (const emp of employees) {
-      try {
-        await api.post(`/companies/${company._id}/payroll/process`, { employeeId: emp._id, month, year });
-      } catch {}
+    let failed = 0;
+    try {
+      for (const emp of employees) {
+        try {
+          await api.post(`/companies/${company._id}/payroll/process`, { employeeId: emp._id, month, year });
+        } catch {
+          failed += 1;
+        }
+      }
+      await loadPayslips();
+      if (failed) alert(`${failed} employee${failed === 1 ? '' : 's'} could not be processed.`);
+    } finally {
+      setProcessing(false);
     }
-    await loadPayslips();
-    setProcessing(false);
   };
 
   const processOne = async (empId) => {

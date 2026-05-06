@@ -1,133 +1,186 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiArrowRight, FiStar } from 'react-icons/fi';
+import { motion } from 'framer-motion';
+import { FiArrowRight, FiCheckCircle } from 'react-icons/fi';
 
-const products = [
+const plans = [
   {
-    id: 1,
-    name: 'TallyPrime',
-    tagline: 'Complete Business Management',
-    description:
-      'The all-in-one business management software for accounting, inventory, GST, payroll, and more. Built for businesses of all sizes.',
-    features: ['Accounting & Finance', 'GST Billing & Compliance', 'Inventory Management', 'Payroll & HR', 'Banking', 'MIS Reports'],
-    badge: 'Most Popular',
-    badgeColor: 'bg-[#ff6600]',
-    color: 'border-[#003087]',
-    headerBg: 'bg-[#003087]',
-    href: '/products/tallyprime',
-    icon: '📊',
+    name: 'Free',
+    intro: 'For solopreneurs and micro businesses getting started.',
+    monthly: 0,
+    yearly: 0,
+    ctaLabel: 'Get started',
+    href: '/app/register',
+    features: ['1 user', 'Basic invoicing', 'Expense tracking', 'Simple reports'],
   },
   {
-    id: 2,
-    name: 'TallyPrime Edit Log',
-    tagline: 'Audit Trail & Compliance',
-    description:
-      'Track every modification to your financial data. Stay compliant with regulatory requirements with a complete edit history.',
-    features: ['Complete Audit Trail', 'Edit History Tracking', 'Regulatory Compliance', 'User Activity Log', 'Data Integrity', 'Secure Reports'],
-    badge: 'New',
-    badgeColor: 'bg-green-500',
-    color: 'border-gray-200',
-    headerBg: 'bg-gray-700',
-    href: '/products/edit-log',
-    icon: '🔍',
+    name: 'Standard',
+    intro: 'For teams that need organized books and faster compliance.',
+    monthly: 899,
+    yearly: 749,
+    ctaLabel: 'Start free trial',
+    href: '/app/register',
+    features: ['3 users', 'Bank import', 'GST reports', 'Customer and vendor ledgers'],
   },
   {
-    id: 3,
-    name: 'Shoper 9',
-    tagline: 'Retail Management Software',
-    description:
-      'Complete retail and point-of-sale management solution for single and multi-store businesses with customer loyalty programs.',
-    features: ['POS Billing', 'Multi-store Management', 'Inventory Control', 'Customer Loyalty', 'Sales Analytics', 'Staff Management'],
-    badge: null,
-    color: 'border-gray-200',
-    headerBg: 'bg-indigo-700',
-    href: '/products/shoper',
-    icon: '🏪',
+    name: 'Professional',
+    intro: 'For growing businesses with inventory and approval needs.',
+    monthly: 1799,
+    yearly: 1499,
+    ctaLabel: 'Start free trial',
+    href: '/app/register',
+    popular: true,
+    features: ['10 users', 'Inventory control', 'Approvals', 'Payment reminders'],
   },
   {
-    id: 4,
-    name: 'TallyPrime Server',
-    tagline: 'Enterprise-Grade Solution',
-    description:
-      'Designed for large enterprises needing high-performance concurrent multi-user access with enhanced data security and scalability.',
-    features: ['Unlimited Users', 'High Performance', 'Enhanced Security', 'Load Balancing', 'Central Administration', '24×7 Availability'],
-    badge: 'Enterprise',
-    badgeColor: 'bg-purple-600',
-    color: 'border-gray-200',
-    headerBg: 'bg-purple-700',
-    href: '/products/server',
-    icon: '🖥️',
+    name: 'Premium',
+    intro: 'For companies that need deeper controls and data movement.',
+    monthly: 3599,
+    yearly: 2999,
+    ctaLabel: 'Talk to sales',
+    href: '/contact',
+    features: ['Unlimited reports', 'Backup and restore', 'Role permissions', 'Priority support'],
   },
 ];
 
-export default function Products() {
-  return (
-    <section className="py-20 bg-white" id="products">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-14">
-          <span className="inline-block bg-blue-50 text-[#003087] text-sm font-semibold px-4 py-1.5 rounded-full mb-4">
-            Our Products
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            The Right Tool for Every Business
-          </h2>
-          <p className="text-gray-500 text-lg max-w-2xl mx-auto">
-            From small businesses to large enterprises, Tally has a solution tailored to your needs.
-          </p>
-        </div>
+const fadeUp = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0 },
+};
 
-        {/* Product cards */}
-        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-6">
-          {products.map((p) => (
-            <div
-              key={p.id}
-              className={`relative rounded-2xl border-2 ${p.color} overflow-hidden flex flex-col hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}
+function formatPrice(value) {
+  if (value === 0) return 'Free';
+  return `Rs. ${value.toLocaleString('en-IN')}`;
+}
+
+export default function Products() {
+  const [yearly, setYearly] = useState(false);
+
+  return (
+    <section className="bg-white py-20" id="pricing">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <motion.div
+          className="mb-12 text-center"
+          variants={fadeUp}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.3 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+        >
+          <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+            Pricing
+          </div>
+          <h2 className="text-3xl font-black text-slate-950 sm:text-4xl">
+            The right balance of features and affordability
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            Pick a plan that matches your current workflow, then scale into banking, inventory, compliance, and collaboration as your business grows.
+          </p>
+
+          <div className="mt-8 inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setYearly(false)}
+              className={`rounded-lg px-5 py-2.5 text-sm font-bold transition ${
+                !yearly ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
             >
-              {/* Card header */}
-              <div className={`${p.headerBg} p-6 text-white`}>
-                <div className="flex items-start justify-between mb-3">
-                  <span className="text-4xl">{p.icon}</span>
-                  {p.badge && (
-                    <span className={`${p.badgeColor} text-white text-xs font-bold px-2.5 py-1 rounded-full flex items-center gap-1`}>
-                      <FiStar size={10} /> {p.badge}
-                    </span>
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setYearly(true)}
+              className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition ${
+                yearly ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Yearly
+              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-black text-green-700">
+                Save 20%
+              </span>
+            </button>
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="grid gap-5 md:grid-cols-2 xl:grid-cols-4"
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={{ show: { transition: { staggerChildren: 0.09 } } }}
+        >
+          {plans.map((plan) => {
+            const price = yearly ? plan.yearly : plan.monthly;
+            const showSavings = yearly && plan.monthly > 0;
+
+            return (
+              <motion.div
+                key={plan.name}
+                variants={fadeUp}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                whileHover={{
+                  y: -8,
+                  boxShadow: plan.popular
+                    ? '0 24px 48px rgba(11, 87, 208, 0.18)'
+                    : '0 18px 38px rgba(15, 23, 42, 0.12)',
+                }}
+                className={`relative rounded-xl border bg-white p-6 shadow-sm ${
+                  plan.popular ? 'border-[#0b57d0] shadow-lg' : 'border-slate-200'
+                }`}
+              >
+                {plan.popular && (
+                  <span className="absolute right-5 top-0 -translate-y-1/2 rounded-full bg-[#0b57d0] px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-white">
+                    Most popular
+                  </span>
+                )}
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">{plan.name}</div>
+                <p className="mt-3 min-h-[48px] text-sm leading-6 text-slate-600">{plan.intro}</p>
+                <div className="mt-6">
+                  <motion.span
+                    key={`${plan.name}-${yearly}`}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="text-4xl font-black text-slate-950"
+                  >
+                    {formatPrice(price)}
+                  </motion.span>
+                  {price > 0 && (
+                    <span className="ml-2 text-sm text-slate-500">/ month</span>
+                  )}
+                  {showSavings && (
+                    <div className="mt-1 text-xs font-bold text-green-600">
+                      Save Rs. {(plan.monthly - plan.yearly).toLocaleString('en-IN')}/mo vs monthly
+                    </div>
                   )}
                 </div>
-                <h3 className="text-xl font-bold mb-1">{p.name}</h3>
-                <p className="text-white/70 text-sm">{p.tagline}</p>
-              </div>
-
-              {/* Card body */}
-              <div className="p-6 flex flex-col flex-1">
-                <p className="text-gray-500 text-sm mb-5 leading-relaxed">{p.description}</p>
-                <ul className="space-y-2 mb-6 flex-1">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="w-1.5 h-1.5 bg-[#ff6600] rounded-full flex-shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
                 <Link
-                  to={p.href}
-                  className="flex items-center justify-center gap-2 w-full py-2.5 text-sm font-semibold text-[#003087] border-2 border-[#003087] rounded-xl hover:bg-[#003087] hover:text-white transition-all group-hover:bg-[#003087] group-hover:text-white"
+                  to={plan.href}
+                  className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition ${
+                    plan.popular
+                      ? 'bg-[#0b57d0] text-white hover:bg-[#0848ad]'
+                      : 'border border-slate-300 text-slate-800 hover:border-[#0b57d0] hover:text-[#0b57d0]'
+                  }`}
                 >
-                  Learn More <FiArrowRight size={15} />
+                  {plan.ctaLabel}
+                  <FiArrowRight size={15} />
                 </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+                <div className="mt-6 space-y-3">
+                  {plan.features.map((feature) => (
+                    <div key={feature} className="flex items-center gap-2 text-sm text-slate-600">
+                      <FiCheckCircle className="shrink-0 text-green-600" size={15} />
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
 
-        {/* Bottom CTA */}
-        <div className="text-center mt-12">
-          <Link
-            to="/products"
-            className="inline-flex items-center gap-2 text-[#003087] font-semibold hover:text-[#ff6600] transition-colors"
-          >
-            View all products <FiArrowRight size={16} />
-          </Link>
-        </div>
+        <p className="mt-8 text-center text-sm text-slate-500">
+          All plans include a 14-day free trial. Prices are exclusive of applicable taxes.
+        </p>
       </div>
     </section>
   );

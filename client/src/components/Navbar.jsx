@@ -1,178 +1,226 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FiMenu, FiX, FiChevronDown, FiPhone } from 'react-icons/fi';
+import {
+  FiChevronDown,
+  FiFileText,
+  FiGlobe,
+  FiMenu,
+  FiPhone,
+  FiShield,
+  FiX,
+} from 'react-icons/fi';
+
+const featureGroups = [
+  {
+    title: 'Core accounting',
+    items: ['Invoicing', 'Bills', 'Banking', 'Inventory'],
+  },
+  {
+    title: 'Compliance',
+    items: ['GST reports', 'E-invoice data', 'Audit trail', 'Approvals'],
+  },
+  {
+    title: 'Automation',
+    items: ['Payment reminders', 'Recurring entries', 'Imports', 'Exports'],
+  },
+];
 
 const navLinks = [
-  {
-    label: 'Products',
-    href: '/products',
-    children: [
-      { label: 'TallyPrime', href: '/products/tallyprime' },
-      { label: 'TallyPrime Edit Log', href: '/products/edit-log' },
-      { label: 'Shoper 9', href: '/products/shoper' },
-      { label: 'TallyPrime Server', href: '/products/server' },
-    ],
-  },
-  {
-    label: 'Solutions',
-    href: '/solutions',
-    children: [
-      { label: 'Accounting & Finance', href: '/solutions/accounting' },
-      { label: 'Inventory Management', href: '/solutions/inventory' },
-      { label: 'GST Compliance', href: '/solutions/gst' },
-      { label: 'Payroll', href: '/solutions/payroll' },
-    ],
-  },
-  { label: 'Partners', href: '/partners' },
+  { label: 'Features', href: '/#features' },
+  { label: 'Pricing', href: '/#pricing' },
+  { label: 'Solutions', href: '/products' },
   { label: 'Resources', href: '/resources' },
-  { label: 'About', href: '/about' },
-  { label: 'Contact', href: '/contact' },
+  { label: 'Company', href: '/about' },
 ];
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [showFeatures, setShowFeatures] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 20);
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    setIsOpen(false);
-    setActiveDropdown(null);
-  }, [location]);
+  const isActive = (href) => {
+    if (href.startsWith('/#')) return location.pathname === '/';
+    return location.pathname === href;
+  };
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? 'bg-white shadow-lg' : 'bg-white/95 backdrop-blur-sm'
+      className={`fixed left-0 right-0 top-0 z-50 border-b transition-all duration-200 ${
+        scrolled
+          ? 'border-slate-200 bg-white/95 shadow-sm backdrop-blur'
+          : 'border-slate-100 bg-white'
       }`}
     >
-      {/* Top bar */}
-      <div className="bg-[#003087] text-white text-xs py-1.5 px-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <span>India's #1 Business Management Software</span>
-          <div className="flex items-center gap-4">
-            <a href="tel:1800-309-8859" className="flex items-center gap-1 hover:text-orange-300 transition-colors">
-              <FiPhone size={11} /> 1800-309-8859
+      <div className="border-b border-slate-100 bg-[#fff8ed]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2 text-xs text-slate-600 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 font-medium">
+            <FiShield className="text-[#0b57d0]" size={13} />
+            GST-compliant accounting software for growing businesses
+          </div>
+          <div className="hidden items-center gap-5 md:flex">
+            <a href="tel:18003098859" className="flex items-center gap-1.5 hover:text-[#0b57d0]">
+              <FiPhone size={13} />
+              1800-309-8859
             </a>
-            <span>|</span>
-            <a href="/contact" className="hover:text-orange-300 transition-colors">Find a Partner</a>
+            <span className="flex items-center gap-1.5">
+              <FiGlobe size={13} />
+              India
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main navbar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-10 h-10 bg-[#003087] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">T</span>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-6">
+          <Link to="/" className="flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-md bg-[#0b57d0] text-sm font-black text-white shadow-sm">
+              SB
             </div>
-            <div>
-              <div className="text-[#003087] font-bold text-xl leading-none">Tally</div>
-              <div className="text-[#ff6600] text-xs font-semibold tracking-wider">SOLUTIONS</div>
-            </div>
+            <div className="text-lg font-bold text-slate-950">Suraj Books</div>
           </Link>
 
-          {/* Desktop nav */}
-          <div className="hidden lg:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <div
-                key={link.label}
-                className="relative"
-                onMouseEnter={() => link.children && setActiveDropdown(link.label)}
-                onMouseLeave={() => setActiveDropdown(null)}
+          <div className="hidden items-center gap-1 lg:flex">
+            <div
+              className="relative"
+              onMouseEnter={() => setShowFeatures(true)}
+              onMouseLeave={() => setShowFeatures(false)}
+            >
+              <a
+                href="/#features"
+                className={`flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  isActive('/#features')
+                    ? 'bg-blue-50 text-[#0b57d0]'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-[#0b57d0]'
+                }`}
               >
-                <Link
-                  to={link.href}
-                  className={`flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                    location.pathname === link.href
-                      ? 'text-[#003087] bg-blue-50'
-                      : 'text-gray-700 hover:text-[#003087] hover:bg-blue-50'
+                Features
+                <FiChevronDown size={14} />
+              </a>
+              {showFeatures && (
+                <div className="absolute left-0 top-full w-[560px] rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
+                  <div className="grid grid-cols-3 gap-3">
+                    {featureGroups.map((group) => (
+                      <div key={group.title} className="rounded-lg bg-slate-50 p-4">
+                        <div className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-950">
+                          <FiFileText className="text-[#0b57d0]" size={15} />
+                          {group.title}
+                        </div>
+                        <div className="space-y-2">
+                          {group.items.map((item) => (
+                            <a
+                              key={item}
+                              href="/#features"
+                              className="block text-sm text-slate-600 hover:text-[#0b57d0]"
+                            >
+                              {item}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {navLinks.slice(1).map((link) => (
+              link.href.startsWith('/#') ? (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                    isActive(link.href)
+                      ? 'bg-blue-50 text-[#0b57d0]'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-[#0b57d0]'
                   }`}
                 >
                   {link.label}
-                  {link.children && <FiChevronDown size={14} />}
+                </a>
+              ) : (
+                <Link
+                  key={link.label}
+                  to={link.href}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                    isActive(link.href)
+                      ? 'bg-blue-50 text-[#0b57d0]'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-[#0b57d0]'
+                  }`}
+                >
+                  {link.label}
                 </Link>
-                {link.children && activeDropdown === link.label && (
-                  <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50">
-                    {link.children.map((child) => (
-                      <Link
-                        key={child.label}
-                        to={child.href}
-                        className="block px-4 py-2.5 text-sm text-gray-600 hover:text-[#003087] hover:bg-blue-50 transition-colors"
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )
             ))}
           </div>
 
-          {/* CTA buttons */}
-          <div className="hidden lg:flex items-center gap-3">
-            <a
-              href="/download"
-              className="px-4 py-2 text-sm font-semibold text-[#003087] border-2 border-[#003087] rounded-lg hover:bg-blue-50 transition-colors"
+          <div className="hidden items-center gap-3 lg:flex">
+            <Link to="/app/login" className="text-sm font-semibold text-slate-700 hover:text-[#0b57d0]">
+              Sign in
+            </Link>
+            <Link
+              to="/app/register"
+              className="rounded-md border border-[#0b57d0] bg-[#0b57d0] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#0848ad]"
             >
-              Free Trial
-            </a>
-            <a
-              href="/buy"
-              className="px-4 py-2 text-sm font-semibold text-white bg-[#ff6600] rounded-lg hover:bg-orange-600 transition-colors shadow-md hover:shadow-lg"
-            >
-              Buy Now
-            </a>
+              Start free trial
+            </Link>
           </div>
 
-          {/* Mobile menu toggle */}
           <button
-            className="lg:hidden p-2 rounded-md text-gray-700 hover:bg-gray-100"
-            onClick={() => setIsOpen(!isOpen)}
+            type="button"
+            aria-label="Open menu"
+            onClick={() => setIsOpen((value) => !value)}
+            className="grid h-10 w-10 place-items-center rounded-md border border-slate-200 text-slate-700 lg:hidden"
           >
-            {isOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+            {isOpen ? <FiX size={22} /> : <FiMenu size={22} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile menu */}
       {isOpen && (
-        <div className="lg:hidden bg-white border-t border-gray-100 shadow-xl">
-          <div className="px-4 py-3 space-y-1">
+        <div className="border-t border-slate-100 bg-white lg:hidden">
+          <div className="space-y-1 px-4 py-4">
             {navLinks.map((link) => (
-              <div key={link.label}>
+              link.href.startsWith('/#') ? (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={() => setIsOpen(false)}
+                className="block rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                  {link.label}
+                </a>
+              ) : (
                 <Link
+                  key={link.label}
                   to={link.href}
-                  className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:text-[#003087] hover:bg-blue-50 rounded-md"
+                  onClick={() => setIsOpen(false)}
+                  className="block rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   {link.label}
                 </Link>
-                {link.children && (
-                  <div className="pl-4 space-y-1 mt-1">
-                    {link.children.map((child) => (
-                      <Link
-                        key={child.label}
-                        to={child.href}
-                        className="block px-3 py-2 text-sm text-gray-500 hover:text-[#003087] hover:bg-blue-50 rounded-md"
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )
             ))}
-            <div className="pt-3 pb-2 flex gap-3">
-              <a href="/download" className="flex-1 text-center py-2.5 text-sm font-semibold text-[#003087] border-2 border-[#003087] rounded-lg">Free Trial</a>
-              <a href="/buy" className="flex-1 text-center py-2.5 text-sm font-semibold text-white bg-[#ff6600] rounded-lg">Buy Now</a>
+            <div className="grid grid-cols-2 gap-3 pt-3">
+              <Link
+                to="/app/login"
+                onClick={() => setIsOpen(false)}
+                className="rounded-md border border-slate-200 px-4 py-2.5 text-center text-sm font-bold text-slate-700"
+              >
+                Sign in
+              </Link>
+              <Link
+                to="/app/register"
+                onClick={() => setIsOpen(false)}
+                className="rounded-md bg-[#0b57d0] px-4 py-2.5 text-center text-sm font-bold text-white"
+              >
+                Free trial
+              </Link>
             </div>
           </div>
         </div>

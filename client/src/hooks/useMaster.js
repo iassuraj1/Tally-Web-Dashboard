@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../utils/api';
-import { useCompany } from '../context/CompanyContext';
+import api, { getApiError } from '../utils/api';
+import { useCompany } from '../context/useCompany';
 
 export default function useMaster(path) {
   const { company }     = useCompany();
@@ -14,10 +14,12 @@ export default function useMaster(path) {
   const load = useCallback(() => {
     if (!base) { setLoading(false); return; }
     setLoading(true);
-    api.get(base).then(r => setData(r.data.data || [])).catch(e => setError(e.message)).finally(() => setLoading(false));
+    api.get(base).then(r => setData(r.data.data || [])).catch(e => setError(getApiError(e, 'Could not load data'))).finally(() => setLoading(false));
   }, [base]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    queueMicrotask(load);
+  }, [load]);
 
   const create = async (body) => { const r = await api.post(base, body); setData(d => [...d, r.data.data]); return r.data.data; };
   const update = async (id, body) => { const r = await api.put(`${base}/${id}`, body); setData(d => d.map(x => x._id === id ? r.data.data : x)); return r.data.data; };

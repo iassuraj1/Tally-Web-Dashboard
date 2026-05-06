@@ -2,7 +2,7 @@ import ReportShell from './ReportShell';
 
 export default function ProfitLoss() {
   return (
-    <ReportShell title="Profit & Loss Statement" endpoint="reports/profit-loss"
+    <ReportShell title="Profit & Loss Statement" endpoint="reports/profit-loss" serverExport
       renderContent={(res, fmt) => {
         const d = res.data;
         return (

@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useCompany } from '../../../context/CompanyContext';
+import { useState, useEffect, useCallback } from 'react';
+import { useCompany } from '../../../context/useCompany';
 import api from '../../../utils/api';
 import Modal from '../../../components/app/Modal';
 import {
   FiPlus, FiSearch, FiEdit2, FiTrash2, FiEye, FiCopy,
   FiToggleLeft, FiToggleRight, FiDownload, FiPrinter,
-  FiFilter, FiX, FiTrendingUp, FiTrendingDown, FiAlertCircle,
+  FiX, FiAlertCircle,
   FiChevronRight, FiRefreshCw, FiBookOpen,
 } from 'react-icons/fi';
 
@@ -22,6 +22,15 @@ const NATURE_COLORS = {
 };
 const NATURE_TABS = ['All', 'Assets', 'Liabilities', 'Income', 'Expenses'];
 const GST_TYPES   = ['Regular', 'Composition', 'Unregistered', 'Consumer', 'Overseas', ''];
+
+function InfoRow({ label, value }) {
+  return value ? (
+    <div className="flex justify-between py-2 border-b border-gray-50 text-sm">
+      <span className="text-gray-400">{label}</span>
+      <span className="text-gray-800 font-medium text-right max-w-[60%] truncate">{value}</span>
+    </div>
+  ) : null;
+}
 
 /* ── empty form ──────────────────────────────────── */
 const EMPTY = {
@@ -274,10 +283,13 @@ function LedgerDetailPanel({ ledgerId, companyId, onEdit, onClose }) {
 
   useEffect(() => {
     if (!ledgerId || !companyId) return;
-    setLoading(true);
-    api.get(`/companies/${companyId}/ledgers/${ledgerId}`)
-      .then(r => setDetail(r.data.data))
-      .finally(() => setLoading(false));
+    const id = setTimeout(() => {
+      setLoading(true);
+      api.get(`/companies/${companyId}/ledgers/${ledgerId}`)
+        .then(r => setDetail(r.data.data))
+        .finally(() => setLoading(false));
+    }, 0);
+    return () => clearTimeout(id);
   }, [ledgerId, companyId]);
 
   if (loading) return (
@@ -289,13 +301,6 @@ function LedgerDetailPanel({ ledgerId, companyId, onEdit, onClose }) {
 
   const typeColor = NATURE_COLORS[detail.group?.nature] || 'bg-gray-100 text-gray-700';
   const balColor  = detail.currentBalanceType === 'Dr' ? 'text-red-600' : 'text-green-600';
-
-  const InfoRow = ({ label, value }) => value ? (
-    <div className="flex justify-between py-2 border-b border-gray-50 text-sm">
-      <span className="text-gray-400">{label}</span>
-      <span className="text-gray-800 font-medium text-right max-w-[60%] truncate">{value}</span>
-    </div>
-  ) : null;
 
   const txnColor = { Sales:'bg-green-100 text-green-700', Purchase:'bg-blue-100 text-blue-700', Payment:'bg-red-100 text-red-700', Receipt:'bg-yellow-100 text-yellow-700', Journal:'bg-gray-100 text-gray-600', Contra:'bg-purple-100 text-purple-700' };
 
@@ -491,7 +496,10 @@ export default function Ledgers() {
     }).finally(() => setLoading(false));
   }, [cid, withBal]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const id = setTimeout(() => load(), 0);
+    return () => clearTimeout(id);
+  }, [load]);
 
   const loadBalances = () => {
     if (!cid) return;

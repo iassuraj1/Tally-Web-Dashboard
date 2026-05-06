@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { FiSend, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 const subjects = [
-  'Product Inquiry',
+  'Product inquiry',
   'Request a Demo',
-  'Pricing & Licensing',
-  'Technical Support',
+  'Pricing and licensing',
+  'Technical support',
   'Partnership',
   'Other',
 ];
@@ -44,16 +44,16 @@ export default function ContactForm() {
   if (status === 'success') {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mb-4">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-md bg-green-100">
           <FiCheckCircle className="text-green-500" size={40} />
         </div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-2">Message Sent!</h3>
-        <p className="text-gray-500 mb-6">{message}</p>
+        <h3 className="mb-2 text-2xl font-black text-slate-950">Message sent</h3>
+        <p className="mb-6 text-slate-500">{message}</p>
         <button
           onClick={() => setStatus('idle')}
-          className="px-6 py-2.5 bg-[#003087] text-white rounded-xl font-semibold hover:bg-blue-800 transition-colors"
+          className="rounded-md bg-[#0b57d0] px-6 py-2.5 font-bold text-white transition hover:bg-[#0848ad]"
         >
-          Send Another
+          Send another
         </button>
       </div>
     );
@@ -77,7 +77,7 @@ export default function ContactForm() {
               onChange={handleChange}
               placeholder={f.placeholder}
               required={f.label.endsWith('*')}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] focus:border-transparent transition"
+              className="w-full rounded-md border border-slate-200 px-4 py-3 text-sm transition focus:border-[#0b57d0] focus:outline-none focus:ring-2 focus:ring-blue-100"
             />
           </div>
         ))}
@@ -90,7 +90,7 @@ export default function ContactForm() {
           value={form.subject}
           onChange={handleChange}
           required
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] text-gray-700 bg-white"
+          className="w-full rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-gray-700 focus:border-[#0b57d0] focus:outline-none focus:ring-2 focus:ring-blue-100"
         >
           <option value="">Select a subject</option>
           {subjects.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -106,12 +106,12 @@ export default function ContactForm() {
           placeholder="Tell us how we can help you..."
           required
           rows={5}
-          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087] resize-none"
+          className="w-full resize-none rounded-md border border-slate-200 px-4 py-3 text-sm focus:border-[#0b57d0] focus:outline-none focus:ring-2 focus:ring-blue-100"
         />
       </div>
 
       {status === 'error' && (
-        <div className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-xl text-sm">
+        <div className="flex items-center gap-2 rounded-md bg-red-50 px-4 py-3 text-sm text-red-600">
           <FiAlertCircle size={16} /> {message}
         </div>
       )}
@@ -119,7 +119,7 @@ export default function ContactForm() {
       <button
         type="submit"
         disabled={status === 'loading'}
-        className="w-full py-3.5 bg-[#003087] text-white font-semibold rounded-xl hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-[#0b57d0] py-3.5 font-bold text-white transition hover:bg-[#0848ad] disabled:cursor-not-allowed disabled:opacity-70"
       >
         {status === 'loading' ? (
           <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

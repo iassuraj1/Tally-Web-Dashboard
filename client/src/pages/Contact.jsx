@@ -1,92 +1,93 @@
 import ContactForm from '../components/ContactForm';
-import { FiPhone, FiMail, FiMapPin, FiClock } from 'react-icons/fi';
+import { FiClock, FiMail, FiMapPin, FiMessageCircle, FiPhone } from 'react-icons/fi';
+
+const channels = [
+  { Icon: FiPhone, label: 'Sales', value: '1800-309-8859', href: 'tel:18003098859' },
+  { Icon: FiMail, label: 'Support', value: 'support@surajbooks.com', href: 'mailto:support@surajbooks.com' },
+  { Icon: FiClock, label: 'Hours', value: 'Mon-Sat, 9 AM-6 PM IST' },
+];
 
 const offices = [
-  { city: 'Bengaluru (HQ)', address: 'Tally Solutions Pvt. Ltd., 23 Vittal Mallya Road, Bengaluru – 560001', phone: '+91-80-6726-2323' },
-  { city: 'Mumbai',         address: 'Unit No. 701, 7th Floor, Lotus Corporate Park, Goregaon East, Mumbai – 400063', phone: '+91-22-6663-8282' },
-  { city: 'Delhi (NCR)',    address: '4th Floor, Rectangle 1, Commercial Complex, D-4, Saket District Centre, New Delhi – 110017', phone: '+91-11-4715-0450' },
-  { city: 'Chennai',        address: 'New No. 8, Old No. 3B, 2nd Floor, Ceebros Buildings, Montieth Road, Egmore, Chennai – 600008', phone: '+91-44-4285-4844' },
+  { city: 'Bengaluru', address: 'Product and engineering hub for Suraj Books.' },
+  { city: 'Mumbai', address: 'Regional support for commerce, retail, and service teams.' },
+  { city: 'Delhi NCR', address: 'Implementation support for growing businesses and firms.' },
+  { city: 'Chennai', address: 'Customer success for finance and operations teams.' },
 ];
 
 export default function Contact() {
   return (
-    <div className="pt-24 pb-20">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-[#003087] to-[#0051cc] text-white py-20 px-4 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">Get in Touch</h1>
-        <p className="text-blue-200 text-lg max-w-xl mx-auto">
-          Have questions about Tally? Our team is here to help you find the right solution.
-        </p>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid lg:grid-cols-3 gap-10">
-          {/* Left — contact info */}
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Contact Information</h2>
-              <div className="space-y-4">
-                {[
-                  { Icon: FiPhone,   label: 'Toll Free',    value: '1800-309-8859',            href: 'tel:18003098859' },
-                  { Icon: FiMail,    label: 'Email',         value: 'support@tallysolutions.com', href: 'mailto:support@tallysolutions.com' },
-                  { Icon: FiClock,   label: 'Support Hours', value: 'Mon–Sat, 9AM – 6PM IST',   href: null },
-                ].map(({ Icon, label, value, href }) => (
-                  <div key={label} className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Icon className="text-[#003087]" size={18} />
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-400 font-medium">{label}</div>
-                      {href ? (
-                        <a href={href} className="text-sm font-semibold text-gray-800 hover:text-[#003087]">{value}</a>
-                      ) : (
-                        <div className="text-sm font-semibold text-gray-800">{value}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+    <div className="bg-white pt-28">
+      <section className="border-b border-slate-200 bg-[#fffaf2] py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:px-8">
+          <div>
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Contact us
             </div>
-
-            {/* Quick links */}
-            <div className="bg-blue-50 rounded-2xl p-5">
-              <h3 className="font-bold text-gray-900 mb-3">Quick Support</h3>
-              <div className="space-y-2">
-                {['Download TallyPrime', 'Find a Tally Partner', 'Knowledge Base', 'Video Tutorials'].map((l) => (
-                  <a key={l} href="#" className="block text-sm text-[#003087] hover:text-[#ff6600] transition-colors font-medium">
-                    → {l}
-                  </a>
-                ))}
-              </div>
-            </div>
+            <h1 className="text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+              Get help choosing the right accounting workflow
+            </h1>
+            <p className="mt-5 text-base leading-7 text-slate-600">
+              Tell us about your sales, purchase, inventory, GST, banking, and reporting needs. We will help you plan the right setup.
+            </p>
           </div>
-
-          {/* Right — form */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Send Us a Message</h2>
+          <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-md bg-blue-50 text-[#0b57d0]">
+                <FiMessageCircle size={22} />
+              </div>
+              <div>
+                <div className="text-lg font-black text-slate-950">Send us a message</div>
+                <div className="text-sm text-slate-500">We usually respond within one business day.</div>
+              </div>
+            </div>
             <ContactForm />
           </div>
         </div>
+      </section>
 
-        {/* Office locations */}
-        <div className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Our Offices</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {offices.map((o) => (
-              <div key={o.city} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center mb-3">
-                  <FiMapPin className="text-[#ff6600]" size={18} />
+      <section className="py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-5 md:grid-cols-3">
+            {channels.map(({ Icon, label, value, href }) => (
+              <div key={label} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 grid h-11 w-11 place-items-center rounded-md bg-slate-50 text-[#0b57d0]">
+                  <Icon size={20} />
                 </div>
-                <h3 className="font-bold text-gray-900 mb-1">{o.city}</h3>
-                <p className="text-xs text-gray-500 mb-2 leading-relaxed">{o.address}</p>
-                <a href={`tel:${o.phone.replace(/\D/g, '')}`} className="text-xs text-[#003087] font-medium hover:text-[#ff6600]">
-                  {o.phone}
-                </a>
+                <div className="text-sm font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
+                {href ? (
+                  <a href={href} className="mt-2 block text-lg font-black text-slate-950 hover:text-[#0b57d0]">
+                    {value}
+                  </a>
+                ) : (
+                  <div className="mt-2 text-lg font-black text-slate-950">{value}</div>
+                )}
               </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      <section className="border-t border-slate-200 bg-[#f6f8fb] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Regional support
+            </div>
+            <h2 className="text-3xl font-black text-slate-950">Teams close to your business</h2>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {offices.map((office) => (
+              <div key={office.city} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-4 grid h-10 w-10 place-items-center rounded-md bg-blue-50 text-[#0b57d0]">
+                  <FiMapPin size={19} />
+                </div>
+                <h3 className="text-lg font-black text-slate-950">{office.city}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{office.address}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

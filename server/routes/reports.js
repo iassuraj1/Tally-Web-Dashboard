@@ -3,15 +3,29 @@ const router  = express.Router({ mergeParams: true });
 const Voucher = require('../models/Voucher');
 const Ledger  = require('../models/Ledger');
 const Group   = require('../models/Group');
-const { protect, companyAccess } = require('../middleware/auth');
+const { protect, companyAccess, requirePermission } = require('../middleware/auth');
+const { sendReportExport } = require('../utils/reportExport');
 
 router.use(protect, companyAccess);
+router.use(requirePermission('view_reports'));
 
 const cid = (req) => req.params.companyId;
 
+const exportFilename = (name) => `${name}_${new Date().toISOString().slice(0, 10)}`;
+
+const respondOrExport = (req, res, reportName, payload, sheets, title) => {
+  if (!['csv', 'xlsx', 'pdf'].includes(req.query.format)) return res.json({ success: true, ...payload });
+  if (!req.companyPermissions?.includes('export_data')) {
+    return res.status(403).json({ success: false, message: 'Permission required: export_data' });
+  }
+  return sendReportExport(res, exportFilename(reportName), sheets, req.query.format, title || reportName);
+};
+
+const moneyDate = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
+
 // Build ledger balance map from vouchers
 const buildBalances = async (companyId, toDate, fromDate) => {
-  const filter = { company: companyId, isCancelled: false };
+  const filter = { company: companyId, isCancelled: false, status: 'Approved' };
   if (toDate)   filter.date = { $lte: new Date(toDate) };
   if (fromDate) filter.date = { ...filter.date, $gte: new Date(fromDate) };
 
@@ -52,7 +66,13 @@ router.get('/trial-balance', async (req, res) => {
       .sort((a, b) => a.ledger.localeCompare(b.ledger));
     const totDebit  = rows.reduce((s, r) => s + r.debit,  0);
     const totCredit = rows.reduce((s, r) => s + r.credit, 0);
-    res.json({ success: true, data: rows, totals: { debit: totDebit, credit: totCredit } });
+    return respondOrExport(req, res, 'trial_balance', {
+      data: rows,
+      totals: { debit: totDebit, credit: totCredit },
+    }, [{
+      name: 'trial_balance',
+      rows: [...rows, { ledger: 'Total', group: '', nature: '', debit: totDebit, credit: totCredit }],
+    }], 'Trial Balance');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -67,7 +87,15 @@ router.get('/balance-sheet', async (req, res) => {
       if (l.nature === 'Assets')      { result.assets.push(entry);      result.totalAssets      += Math.abs(l.balance); }
       if (l.nature === 'Liabilities') { result.liabilities.push(entry); result.totalLiabilities += Math.abs(l.balance); }
     }
-    res.json({ success: true, data: result });
+    return respondOrExport(req, res, 'balance_sheet', { data: result }, [{
+      name: 'balance_sheet',
+      rows: [
+        ...result.liabilities.map((row) => ({ section: 'Liabilities', ...row })),
+        { section: 'Liabilities', name: 'Total Liabilities', group: '', amount: result.totalLiabilities },
+        ...result.assets.map((row) => ({ section: 'Assets', ...row })),
+        { section: 'Assets', name: 'Total Assets', group: '', amount: result.totalAssets },
+      ],
+    }], 'Balance Sheet');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -86,7 +114,17 @@ router.get('/profit-loss', async (req, res) => {
     const grossExpenses = result.expenses.filter(i => i.affectsGross).reduce((s, i) => s + i.amount, 0);
     result.grossProfit = grossIncome - grossExpenses;
     result.netProfit   = result.totalIncome - result.totalExpenses;
-    res.json({ success: true, data: result });
+    return respondOrExport(req, res, 'profit_loss', { data: result }, [{
+      name: 'profit_loss',
+      rows: [
+        ...result.income.map((row) => ({ section: 'Income', ...row })),
+        { section: 'Income', name: 'Total Income', group: '', amount: result.totalIncome },
+        ...result.expenses.map((row) => ({ section: 'Expenses', ...row })),
+        { section: 'Expenses', name: 'Total Expenses', group: '', amount: result.totalExpenses },
+        { section: 'Summary', name: 'Gross Profit', group: '', amount: result.grossProfit },
+        { section: 'Summary', name: 'Net Profit', group: '', amount: result.netProfit },
+      ],
+    }], 'Profit and Loss');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -96,7 +134,7 @@ router.get('/ledger/:ledgerId', async (req, res) => {
     const ledger = await Ledger.findOne({ _id: req.params.ledgerId, company: cid(req) }).populate('group', 'nature');
     if (!ledger) return res.status(404).json({ success: false, message: 'Ledger not found' });
 
-    const filter = { company: cid(req), 'entries.ledger': req.params.ledgerId, isCancelled: false };
+    const filter = { company: cid(req), 'entries.ledger': req.params.ledgerId, isCancelled: false, status: 'Approved' };
     if (req.query.from) filter.date = { $gte: new Date(req.query.from) };
     if (req.query.to)   filter.date = { ...filter.date, $lte: new Date(req.query.to) };
 
@@ -120,14 +158,20 @@ router.get('/ledger/:ledgerId', async (req, res) => {
         });
       }
     }
-    res.json({ success: true, ledger: { name: ledger.name, openingBalance: ledger.openingBalance, openingType: ledger.openingBalanceType }, data: rows });
+    return respondOrExport(req, res, `ledger_${ledger.name}`, {
+      ledger: { name: ledger.name, openingBalance: ledger.openingBalance, openingType: ledger.openingBalanceType },
+      data: rows,
+    }, [{
+      name: 'ledger',
+      rows: rows.map((row) => ({ ...row, date: moneyDate(row.date) })),
+    }], `Ledger Report - ${ledger.name}`);
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // GET /reports/daybook
 router.get('/daybook', async (req, res) => {
   try {
-    const filter = { company: cid(req), isCancelled: false };
+    const filter = { company: cid(req), isCancelled: false, status: 'Approved' };
     if (req.query.date) {
       const d = new Date(req.query.date);
       filter.date = { $gte: d, $lt: new Date(d.getTime() + 86400000) };
@@ -137,7 +181,19 @@ router.get('/daybook', async (req, res) => {
     }
     const vouchers = await Voucher.find(filter)
       .populate('party', 'name').populate('entries.ledger', 'name').sort({ date: 1 });
-    res.json({ success: true, data: vouchers });
+    return respondOrExport(req, res, 'daybook', { data: vouchers }, [{
+      name: 'daybook',
+      rows: vouchers.map((voucher) => ({
+        date: moneyDate(voucher.date),
+        voucherType: voucher.voucherType,
+        voucherNo: voucher.voucherNo,
+        party: voucher.party?.name || '',
+        narration: voucher.narration || '',
+        entries: (voucher.entries || []).map((entry) => `${entry.ledger?.name || ''} ${entry.type} ${entry.amount}`).join('; '),
+        total: voucher.total,
+        status: voucher.status,
+      })),
+    }], 'Day Book');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
@@ -147,7 +203,7 @@ router.get('/outstanding', async (req, res) => {
     const type      = req.query.type || 'receivable'; // receivable = debtors, payable = creditors
     const groupName = type === 'receivable' ? 'Sundry Debtors' : 'Sundry Creditors';
     const group = await Group.findOne({ company: cid(req), name: groupName });
-    if (!group) return res.json({ success: true, data: [] });
+    if (!group) return respondOrExport(req, res, `outstanding_${type}`, { data: [], total: 0 }, [{ name: 'outstanding', rows: [] }], 'Outstanding');
 
     const ledgers  = await Ledger.find({ company: cid(req), group: group._id });
     const balMap   = await buildBalances(cid(req), req.query.to);
@@ -157,14 +213,18 @@ router.get('/outstanding', async (req, res) => {
       if (!bal || !bal.balance) continue;
       result.push({ ledger: l.name, _id: l._id, balance: Math.abs(bal.balance), type: bal.balance >= 0 ? 'Dr' : 'Cr', phone: l.phone, email: l.email });
     }
-    res.json({ success: true, data: result, total: result.reduce((s, r) => s + r.balance, 0) });
+    const total = result.reduce((s, r) => s + r.balance, 0);
+    return respondOrExport(req, res, `outstanding_${type}`, { data: result, total }, [{
+      name: 'outstanding',
+      rows: [...result, { ledger: 'Total Outstanding', balance: total }],
+    }], type === 'receivable' ? 'Sundry Receivables' : 'Sundry Payables');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // GET /reports/cash-flow
 router.get('/cash-flow', async (req, res) => {
   try {
-    const filter = { company: cid(req), voucherType: { $in: ['Payment', 'Receipt', 'Contra'] }, isCancelled: false };
+    const filter = { company: cid(req), voucherType: { $in: ['Payment', 'Receipt', 'Contra'] }, isCancelled: false, status: 'Approved' };
     if (req.query.from) filter.date = { $gte: new Date(req.query.from) };
     if (req.query.to)   filter.date = { ...filter.date, $lte: new Date(req.query.to) };
     const vouchers = await Voucher.find(filter).populate('entries.ledger', 'name group').sort({ date: 1 });
@@ -175,7 +235,17 @@ router.get('/cash-flow', async (req, res) => {
         if (v.voucherType === 'Payment' && e.type === 'Cr') outflow.push({ date: v.date, ledger: e.ledger?.name, amount: e.amount, narration: v.narration });
       }
     }
-    res.json({ success: true, data: { inflow, outflow, totalInflow: inflow.reduce((s, i) => s + i.amount, 0), totalOutflow: outflow.reduce((s, o) => s + o.amount, 0) } });
+    const payload = {
+      inflow,
+      outflow,
+      totalInflow: inflow.reduce((s, i) => s + i.amount, 0),
+      totalOutflow: outflow.reduce((s, o) => s + o.amount, 0),
+    };
+    return respondOrExport(req, res, 'cash_flow', { data: payload }, [
+      { name: 'inflow', rows: inflow.map((row) => ({ ...row, date: moneyDate(row.date) })) },
+      { name: 'outflow', rows: outflow.map((row) => ({ ...row, date: moneyDate(row.date) })) },
+      { name: 'summary', rows: [{ totalInflow: payload.totalInflow, totalOutflow: payload.totalOutflow, netFlow: payload.totalInflow - payload.totalOutflow }] },
+    ], 'Cash Flow');
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 

@@ -27,18 +27,18 @@ const seedProducts = async (req, res) => {
     await Product.deleteMany({});
     const products = [
       {
-        name: 'TallyPrime',
+        name: 'Suraj Prime',
         tagline: 'Business Management Software',
-        description: 'TallyPrime is a complete business management software that helps you manage accounting, inventory, banking, payroll, and more.',
+        description: 'Suraj Prime is a complete business management software that helps you manage accounting, inventory, banking, payroll, and more.',
         features: ['Accounting', 'Inventory Management', 'GST Billing', 'Payroll', 'Banking', 'MIS Reports'],
         price: 'Contact for pricing',
         category: 'accounting',
         isPopular: true,
       },
       {
-        name: 'TallyPrime Edit Log',
+        name: 'Suraj Prime Edit Log',
         tagline: 'Audit Trail Solution',
-        description: 'Track every change made to your financial data with TallyPrime Edit Log - the comprehensive audit trail solution.',
+        description: 'Track every change made to your financial data with Suraj Prime Edit Log - the comprehensive audit trail solution.',
         features: ['Edit Log', 'Audit Trail', 'Compliance', 'Security', 'Change History'],
         price: 'Contact for pricing',
         category: 'accounting',
@@ -54,9 +54,9 @@ const seedProducts = async (req, res) => {
         isPopular: false,
       },
       {
-        name: 'TallyPrime Server',
+        name: 'Suraj Prime Server',
         tagline: 'Enterprise Solution',
-        description: 'TallyPrime Server is the ideal solution for large enterprises that need concurrent data access with high performance.',
+        description: 'Suraj Prime Server is the ideal solution for large enterprises that need concurrent data access with high performance.',
         features: ['Multi-user Access', 'High Performance', 'Data Security', 'Concurrent Access', 'Scalable'],
         price: 'Contact for pricing',
         category: 'accounting',

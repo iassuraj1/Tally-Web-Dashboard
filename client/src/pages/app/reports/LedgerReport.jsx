@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { useCompany } from '../../../context/CompanyContext';
+import { useState } from 'react';
+import { useCompany } from '../../../context/useCompany';
 import useMaster from '../../../hooks/useMaster';
 import api from '../../../utils/api';
-import { FiRefreshCw } from 'react-icons/fi';
+import { FiDownload, FiRefreshCw } from 'react-icons/fi';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN');
 const fmt     = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -25,6 +25,22 @@ export default function LedgerReport() {
       .finally(() => setLoading(false));
   };
 
+  const exportReport = async (format) => {
+    if (!company || !selLedger) return;
+    const res = await api.get(`/companies/${company._id}/reports/ledger/${selLedger}?from=${from}&to=${to}&format=${format}`, { responseType: 'blob' });
+    const disposition = res.headers['content-disposition'] || '';
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    const filename = match?.[1] || `ledger_report.${format}`;
+    const url = URL.createObjectURL(new Blob([res.data], { type: res.headers['content-type'] }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-wrap items-center gap-3">
@@ -38,6 +54,11 @@ export default function LedgerReport() {
         <button onClick={load} className="flex items-center gap-1.5 px-4 py-2 bg-[#003087] text-white text-sm font-semibold rounded-xl hover:bg-blue-800">
           <FiRefreshCw size={14} /> Show
         </button>
+        {['csv', 'xlsx', 'pdf'].map((format) => (
+          <button key={format} onClick={() => exportReport(format)} disabled={!selLedger} className="flex items-center gap-1.5 px-4 py-2 text-gray-600 border border-gray-200 text-sm rounded-xl hover:bg-gray-50 disabled:opacity-50">
+            <FiDownload size={14} /> {format === 'xlsx' ? 'Excel' : format.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {data && (

@@ -1,127 +1,145 @@
 import { Link } from 'react-router-dom';
-import { FiArrowRight, FiCheck } from 'react-icons/fi';
+import {
+  FiArrowRight,
+  FiCheckCircle,
+  FiCreditCard,
+  FiFileText,
+  FiPackage,
+  FiShield,
+  FiUsers,
+} from 'react-icons/fi';
 
-const allProducts = [
+const suites = [
   {
-    name: 'TallyPrime',
-    tagline: 'Complete Business Management Software',
-    description: 'TallyPrime is designed to be the simplest and most powerful business management software. It handles accounting, inventory, GST compliance, payroll, banking, and more — all from one platform.',
-    features: ['Accounting & Finance', 'GST & e-Invoicing', 'Inventory Management', 'Payroll & HR', 'Banking & Reconciliation', 'MIS Reports & Analytics', 'Remote Access', 'Multi-company'],
-    badge: 'Most Popular',
-    badgeColor: 'bg-[#ff6600]',
-    headerBg: 'from-[#003087] to-[#0051cc]',
-    href: '/products/tallyprime',
-    icon: '📊',
-    price: 'Starting ₹18,000/year',
+    icon: FiFileText,
+    title: 'Receivables and sales',
+    description: 'Create invoices, track customer balances, send reminders, and export professional GST documents.',
+    features: ['Sales invoices', 'Payment reminders', 'Customer ledgers', 'GST invoice print'],
   },
   {
-    name: 'TallyPrime Edit Log',
-    tagline: 'Audit Trail & Compliance Solution',
-    description: 'Maintain a complete history of every change made in your Tally data. Stay compliant with the audit trail requirements under GST and Income Tax laws.',
-    features: ['Complete Edit History', 'Who Changed What & When', 'Regulatory Compliance', 'Tamper-proof Logs', 'User Activity Reports', 'Data Integrity Checks'],
-    badge: 'New',
-    badgeColor: 'bg-green-500',
-    headerBg: 'from-gray-700 to-gray-900',
-    href: '/products/edit-log',
-    icon: '🔍',
-    price: 'Add-on to TallyPrime',
+    icon: FiCreditCard,
+    title: 'Banking and payments',
+    description: 'Upload bank statements, auto-match entries, reconcile manually, and keep payment history visible.',
+    features: ['CSV and Excel import', 'Auto matching', 'Manual reconciliation', 'Reminder history'],
   },
   {
-    name: 'Shoper 9',
-    tagline: 'Retail & POS Management Software',
-    description: 'A complete retail management solution for single and multi-store businesses. Handles point-of-sale billing, inventory, customer loyalty programs, and staff management.',
-    features: ['POS Billing', 'Multi-store Management', 'Customer Loyalty Programs', 'Inventory Control', 'Staff Management', 'Sales Analytics'],
-    badge: null,
-    headerBg: 'from-indigo-700 to-indigo-900',
-    href: '/products/shoper',
-    icon: '🏪',
-    price: 'Contact for pricing',
+    icon: FiPackage,
+    title: 'Inventory and purchasing',
+    description: 'Manage stock items, vendors, purchase workflows, low stock, valuation, batch, and expiry views.',
+    features: ['Stock items', 'Purchase bills', 'Valuation reports', 'Reorder alerts'],
   },
   {
-    name: 'TallyPrime Server',
-    tagline: 'Enterprise-Grade Multi-User Solution',
-    description: 'Designed for large businesses that need concurrent multi-user access with maximum performance, security, and scalability. Central administration for all your Tally data.',
-    features: ['Unlimited Concurrent Users', 'High-Performance Engine', 'Enhanced Data Security', 'Central Administration', 'Load Balancing', '24×7 Availability'],
-    badge: 'Enterprise',
-    badgeColor: 'bg-purple-600',
-    headerBg: 'from-purple-700 to-purple-900',
-    href: '/products/server',
-    icon: '🖥️',
-    price: 'Contact for pricing',
+    icon: FiShield,
+    title: 'Compliance and controls',
+    description: 'Prepare GST reports, e-invoice-ready fields, role permissions, approvals, comments, and attachments.',
+    features: ['GSTR summaries', 'Audit trail', 'Approval queue', 'Role permissions'],
   },
 ];
 
 export default function ProductsPage() {
   return (
-    <div className="pt-24 pb-20">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-[#003087] to-[#0051cc] text-white py-20 px-4 text-center">
-        <span className="inline-block bg-white/10 border border-white/20 text-sm px-4 py-1.5 rounded-full mb-4">
-          Our Products
-        </span>
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">
-          Solutions Built for Indian Business
-        </h1>
-        <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-          Whether you're a startup or a large enterprise, Tally has the right product for you.
-        </p>
-      </div>
-
-      {/* Products list */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 space-y-10">
-        {allProducts.map((p, i) => (
-          <div
-            key={p.name}
-            className={`rounded-2xl overflow-hidden shadow-md border border-gray-100 flex flex-col ${
-              i % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'
-            }`}
-          >
-            {/* Color panel */}
-            <div className={`bg-gradient-to-br ${p.headerBg} p-10 flex flex-col justify-center items-center text-white lg:w-64 flex-shrink-0`}>
-              <span className="text-7xl mb-4">{p.icon}</span>
-              <h2 className="text-2xl font-bold text-center">{p.name}</h2>
-              <p className="text-white/70 text-sm text-center mt-1">{p.tagline}</p>
-              {p.badge && (
-                <span className={`mt-3 ${p.badgeColor} text-xs font-bold px-3 py-1 rounded-full`}>
-                  {p.badge}
-                </span>
-              )}
+    <div className="bg-white pt-28">
+      <section className="border-b border-slate-200 bg-[#fffaf2] py-20">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
+          <div>
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Solutions
             </div>
+            <h1 className="text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+              One accounting platform for sales, banking, inventory, and compliance
+            </h1>
+            <p className="mt-5 text-base leading-7 text-slate-600">
+              Suraj Books brings daily operations and statutory reporting into the same workflow, so teams can move from entry to review to export without switching tools.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link
+                to="/app/register"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0b57d0] px-5 py-3 text-sm font-black text-white hover:bg-[#0848ad]"
+              >
+                Start free trial
+                <FiArrowRight size={15} />
+              </Link>
+              <Link
+                to="/contact"
+                className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-800 hover:border-[#0b57d0] hover:text-[#0b57d0]"
+              >
+                Request demo
+              </Link>
+            </div>
+          </div>
 
-            {/* Content */}
-            <div className="p-8 flex-1 flex flex-col justify-between">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <p className="text-gray-500 mb-6 leading-relaxed">{p.description}</p>
-                <div className="grid sm:grid-cols-2 gap-2 mb-6">
-                  {p.features.map((f) => (
-                    <div key={f} className="flex items-center gap-2 text-sm text-gray-700">
-                      <FiCheck className="text-green-500 flex-shrink-0" size={15} />
-                      {f}
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Workspace</div>
+                <div className="text-lg font-black text-slate-950">Business health</div>
+              </div>
+              <span className="rounded-md bg-green-50 px-3 py-1 text-xs font-black text-green-700">Live</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {['Cash and bank', 'Receivables', 'GST payable', 'Pending approvals'].map((label, index) => (
+                <div key={label} className="rounded-lg bg-slate-50 p-4">
+                  <div className="text-xs text-slate-500">{label}</div>
+                  <div className="mt-1 text-2xl font-black text-slate-950">
+                    {['Rs. 7.8L', 'Rs. 3.4L', 'Rs. 82K', '6'][index]}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Product modules
+            </div>
+            <h2 className="text-3xl font-black text-slate-950 sm:text-4xl">
+              Choose the workflows your business needs
+            </h2>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            {suites.map((suite) => (
+              <div key={suite.title} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 grid h-12 w-12 place-items-center rounded-md bg-blue-50 text-[#0b57d0]">
+                  <suite.icon size={22} />
+                </div>
+                <h3 className="text-xl font-black text-slate-950">{suite.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{suite.description}</p>
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {suite.features.map((feature) => (
+                    <div key={feature} className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                      <FiCheckCircle className="text-green-600" size={15} />
+                      {feature}
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <span className="text-sm font-semibold text-[#003087]">{p.price}</span>
-                <div className="flex gap-3">
-                  <Link
-                    to="/contact"
-                    className="px-4 py-2.5 text-sm font-semibold text-[#003087] border-2 border-[#003087] rounded-xl hover:bg-blue-50 transition-colors"
-                  >
-                    Get Demo
-                  </Link>
-                  <Link
-                    to={p.href}
-                    className="px-4 py-2.5 text-sm font-semibold text-white bg-[#003087] rounded-xl hover:bg-blue-800 transition-colors flex items-center gap-1"
-                  >
-                    Learn More <FiArrowRight size={14} />
-                  </Link>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      </section>
+
+      <section className="border-t border-slate-200 bg-[#f6f8fb] py-20">
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+          <FiUsers className="mx-auto mb-5 text-[#0b57d0]" size={36} />
+          <h2 className="text-3xl font-black text-slate-950">
+            Built for owners, accountants, and operators
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600">
+            Give every user the right permission level, keep approval queues clean, and maintain an audit-friendly history of comments, documents, and status changes.
+          </p>
+          <Link
+            to="/contact"
+            className="mt-8 inline-flex items-center gap-2 rounded-md bg-[#0b57d0] px-5 py-3 text-sm font-black text-white hover:bg-[#0848ad]"
+          >
+            Plan your setup
+            <FiArrowRight size={15} />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

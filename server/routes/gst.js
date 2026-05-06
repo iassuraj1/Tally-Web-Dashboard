@@ -1,117 +1,61 @@
 const express = require('express');
-const router  = express.Router({ mergeParams: true });
-const Voucher = require('../models/Voucher');
-const { protect, companyAccess } = require('../middleware/auth');
+const router = express.Router({ mergeParams: true });
+const { protect, companyAccess, requirePermission } = require('../middleware/auth');
+const {
+  buildEInvoiceJson,
+  exportSheets,
+  getGSTR1Report,
+  getGSTR3BReport,
+  getGstMismatchReport,
+  getHSNSummary,
+  getMissingGstinReport,
+  getReverseChargeReport,
+} = require('../services/gstService');
+const { sendReportExport } = require('../utils/reportExport');
 
 router.use(protect, companyAccess);
 
-// GSTR-1: Outward supplies (Sales)
-router.get('/gstr1', async (req, res) => {
+const respondReport = (reportName, getReport) => async (req, res) => {
   try {
-    const { from, to } = req.query;
-    const filter = {
-      company: req.params.companyId,
-      voucherType: { $in: ['Sales', 'CreditNote'] },
-      isCancelled: false,
-    };
-    if (from) filter.date = { $gte: new Date(from) };
-    if (to)   filter.date = { ...filter.date, $lte: new Date(to) };
-
-    const vouchers = await Voucher.find(filter).populate('party', 'name gstin').sort({ date: 1 });
-
-    const b2b = [], b2c = [], cdn = [];
-    let totalTaxable = 0, totalCGST = 0, totalSGST = 0, totalIGST = 0;
-
-    for (const v of vouchers) {
-      const entry = {
-        date: v.date, voucherNo: v.voucherNo, party: v.party?.name,
-        gstin: v.partyGstin, placeOfSupply: v.placeOfSupply,
-        taxable: v.subtotal, cgst: v.totalCGST, sgst: v.totalSGST,
-        igst: v.totalIGST, total: v.total, reverseCharge: v.reverseCharge,
-      };
-      totalTaxable += v.subtotal || 0;
-      totalCGST    += v.totalCGST || 0;
-      totalSGST    += v.totalSGST || 0;
-      totalIGST    += v.totalIGST || 0;
-
-      if (v.voucherType === 'CreditNote') cdn.push(entry);
-      else if (v.partyGstin) b2b.push(entry);
-      else b2c.push(entry);
+    if (!req.companyPermissions?.includes('view_reports')) {
+      return res.status(403).json({ success: false, message: 'Permission required: view_reports' });
     }
-
-    res.json({
-      success: true,
-      data: { b2b, b2c, cdn },
-      summary: { totalTaxable, totalCGST, totalSGST, totalIGST, totalTax: totalCGST + totalSGST + totalIGST },
-    });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// GSTR-3B: Summary return
-router.get('/gstr3b', async (req, res) => {
-  try {
-    const { from, to } = req.query;
-    const filter = { company: req.params.companyId, isCancelled: false };
-    if (from) filter.date = { $gte: new Date(from) };
-    if (to)   filter.date = { ...filter.date, $lte: new Date(to) };
-
-    const sales    = await Voucher.find({ ...filter, voucherType: { $in: ['Sales', 'CreditNote'] } });
-    const purchase = await Voucher.find({ ...filter, voucherType: { $in: ['Purchase', 'DebitNote'] } });
-
-    const sumVouchers = (vs) => vs.reduce((acc, v) => ({
-      taxable: acc.taxable + (v.subtotal    || 0),
-      cgst:    acc.cgst    + (v.totalCGST   || 0),
-      sgst:    acc.sgst    + (v.totalSGST   || 0),
-      igst:    acc.igst    + (v.totalIGST   || 0),
-    }), { taxable: 0, cgst: 0, sgst: 0, igst: 0 });
-
-    const outward  = sumVouchers(sales);
-    const inward   = sumVouchers(purchase);
-    const taxPayable = {
-      cgst: Math.max(0, outward.cgst  - inward.cgst),
-      sgst: Math.max(0, outward.sgst  - inward.sgst),
-      igst: Math.max(0, outward.igst  - inward.igst),
-    };
-
-    res.json({
-      success: true,
-      data: {
-        '3.1': { outward },
-        '4':   { inward  },
-        '6.1': { taxPayable, total: taxPayable.cgst + taxPayable.sgst + taxPayable.igst },
-      },
-    });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
-});
-
-// HSN-wise summary
-router.get('/hsn-summary', async (req, res) => {
-  try {
-    const { from, to } = req.query;
-    const filter = {
-      company: req.params.companyId,
-      voucherType: { $in: ['Sales', 'Purchase'] },
-      isCancelled: false,
-    };
-    if (from) filter.date = { $gte: new Date(from) };
-    if (to)   filter.date = { ...filter.date, $lte: new Date(to) };
-
-    const vouchers = await Voucher.find(filter).select('items voucherType');
-    const hsnMap   = {};
-    for (const v of vouchers) {
-      for (const item of v.items) {
-        const hsn = item.hsnCode || 'N/A';
-        if (!hsnMap[hsn]) hsnMap[hsn] = { hsnCode: hsn, qty: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
-        hsnMap[hsn].qty     += item.qty;
-        hsnMap[hsn].taxable += item.amount;
-        hsnMap[hsn].cgst    += item.cgst;
-        hsnMap[hsn].sgst    += item.sgst;
-        hsnMap[hsn].igst    += item.igst;
-        hsnMap[hsn].total   += item.amount + item.cgst + item.sgst + item.igst;
+    const report = await getReport(req.params.companyId, req.query);
+    if (['csv', 'xlsx', 'pdf'].includes(req.query.format)) {
+      if (!req.companyPermissions?.includes('export_data')) {
+        return res.status(403).json({ success: false, message: 'Permission required: export_data' });
       }
+      const sheets = exportSheets(reportName, report);
+      const filename = `${reportName}_${new Date().toISOString().slice(0, 10)}`;
+      return sendReportExport(res, filename, sheets, req.query.format, reportName.toUpperCase());
     }
-    res.json({ success: true, data: Object.values(hsnMap) });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    return res.json({ success: true, ...report });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+router.get('/gstr1', respondReport('gstr1', getGSTR1Report));
+router.get('/gstr3b', respondReport('gstr3b', getGSTR3BReport));
+
+router.get('/hsn-summary', respondReport('hsn_summary', async (companyId, query) => ({
+  data: await getHSNSummary(companyId, query),
+})));
+
+router.get('/mismatch-checks', respondReport('gst_mismatch_checks', getGstMismatchReport));
+router.get('/missing-gstin', respondReport('missing_gstin', getMissingGstinReport));
+router.get('/reverse-charge', respondReport('reverse_charge', getReverseChargeReport));
+
+router.get('/einvoice/:voucherId.json', requirePermission('export_data'), async (req, res) => {
+  try {
+    const data = await buildEInvoiceJson(req.params.companyId, req.params.voucherId);
+    if (!data) return res.status(404).json({ success: false, message: 'Voucher not found' });
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="einvoice_${data.DocDtls?.No || req.params.voucherId}.json"`);
+    return res.send(JSON.stringify(data, null, 2));
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 module.exports = router;

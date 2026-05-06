@@ -12,6 +12,8 @@ const stockItemSchema = new mongoose.Schema({
   cessRate:       { type: Number, default: 0 },
   taxability:     { type: String, enum: ['Taxable', 'Exempt', 'Nil Rated', 'Non-GST'], default: 'Taxable' },
   // Pricing
+  valuationMethod:{ type: String, enum: ['FIFO', 'Weighted Average', 'Standard Cost'], default: 'Weighted Average' },
+  standardCost:   { type: Number, default: 0 },
   costPrice:      { type: Number, default: 0 },
   sellingPrice:   { type: Number, default: 0 },
   mrp:            { type: Number, default: 0 },
@@ -23,6 +25,8 @@ const stockItemSchema = new mongoose.Schema({
   maintainBatch:  { type: Boolean, default: false },
   trackExpiry:    { type: Boolean, default: false },
   reorderLevel:   { type: Number, default: 0 },
+  minimumStock:   { type: Number, default: 0 },
+  maximumStock:   { type: Number, default: 0 },
   reorderQty:     { type: Number, default: 0 },
   description:    { type: String },
   isActive:       { type: Boolean, default: true },

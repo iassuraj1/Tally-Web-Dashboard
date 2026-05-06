@@ -1,102 +1,150 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiArrowRight, FiCalendar, FiSearch } from 'react-icons/fi';
+import { FiArrowRight, FiCalendar, FiFileText, FiSearch } from 'react-icons/fi';
 import Newsletter from '../components/Newsletter';
 
-const categories = ['All', 'GST & Compliance', 'Product Tips', 'How-To Guide', 'Business Growth', 'Announcements'];
+const categories = ['All', 'Compliance', 'Banking', 'Controls', 'Inventory', 'Reporting'];
 
 const allPosts = [
-  { id: 1, title: 'Understanding GST Changes for FY 2024-25',                    excerpt: 'Key updates to GST rules that every business owner must know, including new e-invoicing thresholds.', category: 'GST & Compliance',  date: 'April 15, 2025', readTime: '5 min', icon: '📋', gradient: 'from-orange-400 to-red-500'  },
-  { id: 2, title: 'Top 10 Features of TallyPrime You Must Use',                  excerpt: 'Discover the hidden gems in TallyPrime that can save you hours of work every week.',              category: 'Product Tips',       date: 'April 10, 2025', readTime: '7 min', icon: '💡', gradient: 'from-blue-400 to-indigo-500' },
-  { id: 3, title: 'How to Automate Bank Reconciliation in Tally',                excerpt: 'Step-by-step guide to setting up automatic bank reconciliation in TallyPrime.',                   category: 'How-To Guide',       date: 'April 5, 2025',  readTime: '4 min', icon: '🏦', gradient: 'from-green-400 to-teal-500'  },
-  { id: 4, title: 'Managing Multi-Branch Business with TallyPrime',              excerpt: 'Best practices for businesses with multiple locations — consolidation and branch-wise reporting.', category: 'Business Growth',    date: 'March 28, 2025', readTime: '6 min', icon: '🏢', gradient: 'from-purple-400 to-pink-500'  },
-  { id: 5, title: 'e-Invoicing Mandatory for All Businesses Above 5 Crore',     excerpt: 'The government has expanded e-invoicing to all businesses with turnover above ₹5 crore.',         category: 'GST & Compliance',  date: 'March 20, 2025', readTime: '3 min', icon: '📄', gradient: 'from-red-400 to-orange-500'   },
-  { id: 6, title: 'TallyPrime 5.0 — What\'s New',                               excerpt: "A detailed look at all the new features, improvements, and bug fixes in TallyPrime 5.0.",          category: 'Announcements',      date: 'March 15, 2025', readTime: '8 min', icon: '🚀', gradient: 'from-cyan-400 to-blue-500'    },
-  { id: 7, title: 'Setting Up Payroll in TallyPrime — Complete Guide',           excerpt: 'Everything you need to know about configuring salaries, PF, ESI, and generating payslips.',       category: 'How-To Guide',       date: 'March 10, 2025', readTime: '9 min', icon: '💼', gradient: 'from-green-400 to-emerald-500' },
-  { id: 8, title: '5 Ways to Use Tally for Better Cash Flow Management',         excerpt: 'Learn how to use TallyPrime\'s built-in features to monitor and improve your cash flow.',         category: 'Business Growth',    date: 'March 5, 2025',  readTime: '5 min', icon: '💰', gradient: 'from-yellow-400 to-orange-500' },
+  {
+    id: 1,
+    title: 'GST report checklist before month-end filing',
+    excerpt: 'Review GSTR summaries, HSN, reverse charge, missing GSTIN, and mismatch checks before filing.',
+    category: 'Compliance',
+    date: 'April 15, 2026',
+    accent: 'bg-[#0b57d0]',
+  },
+  {
+    id: 2,
+    title: 'How connected banking reduces reconciliation time',
+    excerpt: 'Use statement imports, matching rules, and exception queues to keep bank balances clean.',
+    category: 'Banking',
+    date: 'April 8, 2026',
+    accent: 'bg-[#0b57d0]',
+  },
+  {
+    id: 3,
+    title: 'Approval workflows that finance teams actually use',
+    excerpt: 'Set statuses, reviewer ownership, comments, attachments, and audit history without slowing entry.',
+    category: 'Controls',
+    date: 'March 27, 2026',
+    accent: 'bg-[#108043]',
+  },
+  {
+    id: 4,
+    title: 'Low-stock dashboards for practical inventory control',
+    excerpt: 'Combine reorder levels, stock movements, batch tracking, and purchase visibility.',
+    category: 'Inventory',
+    date: 'March 18, 2026',
+    accent: 'bg-[#f5a400]',
+  },
+  {
+    id: 5,
+    title: 'What business owners should see on the main dashboard',
+    excerpt: 'Cash, bank, receivables, payables, sales, purchases, profit estimate, and approvals in one view.',
+    category: 'Reporting',
+    date: 'March 9, 2026',
+    accent: 'bg-[#7c3aed]',
+  },
+  {
+    id: 6,
+    title: 'Importing masters without corrupting accounting data',
+    excerpt: 'Preview, validate, map, and reject failed rows before final import into ledgers and inventory.',
+    category: 'Controls',
+    date: 'February 26, 2026',
+    accent: 'bg-[#334155]',
+  },
 ];
 
 export default function BlogPage() {
-  const [search, setSearch]     = useState('');
+  const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
 
-  const filtered = allPosts.filter((p) => {
-    const matchCat  = category === 'All' || p.category === category;
-    const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase()) || p.excerpt.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+  const filtered = allPosts.filter((post) => {
+    const byCategory = category === 'All' || post.category === category;
+    const term = search.trim().toLowerCase();
+    const bySearch = !term || `${post.title} ${post.excerpt}`.toLowerCase().includes(term);
+    return byCategory && bySearch;
   });
 
   return (
-    <div className="pt-24 pb-20">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-[#003087] to-[#0051cc] text-white py-20 px-4 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">Resources & Insights</h1>
-        <p className="text-blue-200 text-lg max-w-xl mx-auto">
-          Tips, guides, and updates to help you get the most out of Tally and run a better business.
-        </p>
-
-        {/* Search */}
-        <div className="mt-8 max-w-lg mx-auto relative">
-          <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search articles..."
-            className="w-full pl-11 pr-4 py-3.5 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#ff6600] text-sm"
-          />
+    <div className="bg-white pt-28">
+      <section className="border-b border-slate-200 bg-[#fffaf2] py-20">
+        <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+          <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+            Resources
+          </div>
+          <h1 className="text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+            Guides for cleaner books and smarter operations
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600">
+            Practical articles for accounting controls, GST compliance, banking, inventory, exports, and business dashboards.
+          </p>
+          <div className="relative mx-auto mt-8 max-w-xl">
+            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search resources"
+              className="w-full rounded-md border border-slate-200 bg-white py-3.5 pl-11 pr-4 text-sm text-slate-950 outline-none focus:border-[#0b57d0] focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Category filter */}
-        <div className="flex flex-wrap gap-2 mb-10">
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                category === c
-                  ? 'bg-[#003087] text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-
-        {/* Post grid */}
-        {filtered.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {filtered.map((p) => (
-              <article key={p.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group">
-                <div className={`h-40 bg-gradient-to-br ${p.gradient} flex items-center justify-center`}>
-                  <span className="text-5xl">{p.icon}</span>
-                </div>
-                <div className="p-5">
-                  <span className="text-xs font-semibold bg-blue-50 text-[#003087] px-2.5 py-1 rounded-full">{p.category}</span>
-                  <h3 className="mt-3 text-sm font-bold text-gray-900 leading-snug group-hover:text-[#003087] transition-colors line-clamp-2">{p.title}</h3>
-                  <p className="mt-2 text-xs text-gray-500 line-clamp-2">{p.excerpt}</p>
-                  <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
-                    <div className="flex items-center gap-1"><FiCalendar size={11} /> {p.date}</div>
-                    <span>{p.readTime} read</span>
-                  </div>
-                  <Link to={`/blog/${p.id}`} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#003087] hover:text-[#ff6600] transition-colors">
-                    Read more <FiArrowRight size={12} />
-                  </Link>
-                </div>
-              </article>
+      <section className="py-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-10 flex flex-wrap justify-center gap-2">
+            {categories.map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setCategory(item)}
+                className={`rounded-md px-4 py-2 text-sm font-black transition ${
+                  category === item
+                    ? 'bg-[#0b57d0] text-white'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:border-[#0b57d0] hover:text-[#0b57d0]'
+                }`}
+              >
+                {item}
+              </button>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-20 text-gray-400">
-            <div className="text-5xl mb-4">🔍</div>
-            <p className="text-lg font-medium">No articles found</p>
-            <p className="text-sm mt-1">Try a different search or category.</p>
-          </div>
-        )}
-      </div>
+
+          {filtered.length > 0 ? (
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((post) => (
+                <article key={post.id} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                  <div className={`mb-6 grid h-12 w-12 place-items-center rounded-md ${post.accent} text-white`}>
+                    <FiFileText size={22} />
+                  </div>
+                  <div className="mb-3 inline-flex rounded-md bg-slate-100 px-2.5 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                    {post.category}
+                  </div>
+                  <h2 className="text-xl font-black leading-snug text-slate-950">{post.title}</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{post.excerpt}</p>
+                  <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <FiCalendar size={13} />
+                      {post.date}
+                    </span>
+                    <Link to={`/blog/${post.id}`} className="inline-flex items-center gap-1 font-black text-[#0b57d0] hover:text-[#0848ad]">
+                      Read
+                      <FiArrowRight size={12} />
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 py-16 text-center">
+              <p className="text-lg font-black text-slate-950">No resources found</p>
+              <p className="mt-2 text-sm text-slate-500">Try another category or search term.</p>
+            </div>
+          )}
+        </div>
+      </section>
 
       <Newsletter />
     </div>

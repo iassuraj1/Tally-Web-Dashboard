@@ -6,14 +6,33 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
 body {
   font-family: 'Inter', system-ui, sans-serif;
   color: #1a1a2e;
   background: #ffffff;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  overscroll-behavior: none;
+}
+
+/* ── Print styles ── */
+@media print {
+  aside, nav, .no-print, header { display: none !important; }
+  body { background: white !important; padding: 0 !important; }
+  .print-company-header { display: block !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+.print-company-header { display: none; }
 
 @layer utilities {
   .text-gradient {

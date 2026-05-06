@@ -25,11 +25,17 @@ import Groups      from './pages/app/masters/Groups';
 import Ledgers     from './pages/app/masters/Ledgers';
 import StockItems  from './pages/app/masters/StockItems';
 import SimpleMaster from './pages/app/masters/SimpleMaster';
+import Parties from './pages/app/masters/Parties';
 import useMaster   from './hooks/useMaster';
 
 // Vouchers
 import VoucherList  from './pages/app/vouchers/VoucherList';
 import VoucherEntry from './pages/app/vouchers/VoucherEntry';
+import InvoicePrint from './pages/app/vouchers/InvoicePrint';
+import ApprovalQueue from './pages/app/vouchers/ApprovalQueue';
+
+// Workflows
+import WorkflowDocuments from './pages/app/workflows/WorkflowDocuments';
 
 // Reports
 import TrialBalance from './pages/app/reports/TrialBalance';
@@ -42,11 +48,15 @@ import CashFlow     from './pages/app/reports/CashFlow';
 
 // Inventory
 import StockSummary from './pages/app/inventory/StockSummary';
+import InventoryValuation from './pages/app/inventory/InventoryValuation';
+import BatchExpiryReport from './pages/app/inventory/BatchExpiryReport';
+import ReorderReport from './pages/app/inventory/ReorderReport';
 
 // GST
 import GSTR1       from './pages/app/gst/GSTR1';
 import GSTR3B      from './pages/app/gst/GSTR3B';
 import HSNSummary  from './pages/app/gst/HSNSummary';
+import GSTCompliance from './pages/app/gst/GSTCompliance';
 
 // Payroll
 import Employees      from './pages/app/payroll/Employees';
@@ -56,10 +66,19 @@ import Payslips       from './pages/app/payroll/Payslips';
 
 // Banking
 import BankReconciliation from './pages/app/banking/BankReconciliation';
+import BankImport from './pages/app/banking/BankImport';
+import PaymentReminders from './pages/app/banking/PaymentReminders';
+
+// Data tools
+import MasterImport from './pages/app/tools/MasterImport';
+import BackupRestore from './pages/app/tools/BackupRestore';
+import AdvancedFeatures from './pages/app/tools/AdvancedFeatures';
+import TallyShortcuts from './pages/app/tools/TallyShortcuts';
+import Settings from './pages/app/settings/Settings';
+import AccountingControls from './pages/app/settings/AccountingControls';
 
 // Simple master wrappers (Units, Godowns, StockGroups, CostCentres)
 function Units() {
-  const { data: unitData } = useMaster('inventory/units');
   return (
     <SimpleMaster
       title="Units of Measure"
@@ -145,16 +164,6 @@ function CostCentres() {
   );
 }
 
-// Company settings stub
-function Settings() {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 max-w-xl">
-      <h2 className="text-lg font-bold text-gray-900 mb-4">Company Settings</h2>
-      <p className="text-gray-500 text-sm">Edit your company details from the <a href="/app/companies" className="text-[#003087] underline">Companies</a> page.</p>
-    </div>
-  );
-}
-
 function NotFound() {
   return (
     <div className="min-h-screen flex items-center justify-center text-center px-4 pt-24">
@@ -222,6 +231,8 @@ export default function App() {
           {/* Masters */}
           <Route path="masters/groups"       element={<Groups />} />
           <Route path="masters/ledgers"      element={<Ledgers />} />
+          <Route path="masters/customers"    element={<Parties type="customer" />} />
+          <Route path="masters/vendors"      element={<Parties type="vendor" />} />
           <Route path="masters/stock-items"  element={<StockItems />} />
           <Route path="masters/stock-groups" element={<StockGroups />} />
           <Route path="masters/units"        element={<Units />} />
@@ -230,6 +241,7 @@ export default function App() {
 
           {/* Vouchers */}
           <Route path="vouchers"             element={<VoucherList />} />
+          <Route path="vouchers/approvals"   element={<ApprovalQueue />} />
           <Route path="vouchers/sales"       element={<VoucherEntry voucherType="Sales" />} />
           <Route path="vouchers/purchase"    element={<VoucherEntry voucherType="Purchase" />} />
           <Route path="vouchers/payment"     element={<VoucherEntry voucherType="Payment" />} />
@@ -239,6 +251,11 @@ export default function App() {
           <Route path="vouchers/credit-note" element={<VoucherEntry voucherType="CreditNote" />} />
           <Route path="vouchers/debit-note"  element={<VoucherEntry voucherType="DebitNote" />} />
           <Route path="vouchers/stock-journal" element={<VoucherEntry voucherType="StockJournal" />} />
+          <Route path="invoice-print/:id"    element={<InvoicePrint />} />
+
+          {/* Sales and purchase workflows */}
+          <Route path="sales-workflow"        element={<WorkflowDocuments flow="sales" />} />
+          <Route path="purchase-workflow"     element={<WorkflowDocuments flow="purchase" />} />
 
           {/* Reports */}
           <Route path="reports/daybook"       element={<DayBook />} />
@@ -252,11 +269,18 @@ export default function App() {
 
           {/* Inventory */}
           <Route path="inventory/stock-summary" element={<StockSummary />} />
+          <Route path="inventory/valuation"     element={<InventoryValuation />} />
+          <Route path="inventory/batches"       element={<BatchExpiryReport mode="batch" />} />
+          <Route path="inventory/expiry"        element={<BatchExpiryReport mode="expiry" />} />
+          <Route path="inventory/reorder"       element={<ReorderReport />} />
 
           {/* GST */}
           <Route path="gst/gstr1"       element={<GSTR1 />} />
           <Route path="gst/gstr3b"      element={<GSTR3B />} />
           <Route path="gst/hsn-summary" element={<HSNSummary />} />
+          <Route path="gst/mismatch-checks" element={<GSTCompliance report="mismatch" />} />
+          <Route path="gst/missing-gstin"   element={<GSTCompliance report="missingGstin" />} />
+          <Route path="gst/reverse-charge"  element={<GSTCompliance report="reverseCharge" />} />
 
           {/* Payroll */}
           <Route path="payroll/employees" element={<Employees />} />
@@ -266,6 +290,15 @@ export default function App() {
 
           {/* Banking */}
           <Route path="banking/reconciliation" element={<BankReconciliation />} />
+          <Route path="banking/import"         element={<BankImport />} />
+          <Route path="banking/reminders"      element={<PaymentReminders />} />
+
+          {/* Data tools */}
+          <Route path="tools/import-masters" element={<MasterImport />} />
+          <Route path="tools/backup"         element={<BackupRestore />} />
+          <Route path="tools/advanced"       element={<AdvancedFeatures />} />
+          <Route path="tools/tally-shortcuts" element={<TallyShortcuts />} />
+          <Route path="settings/accounting-controls" element={<AccountingControls />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

@@ -2,7 +2,7 @@ import ReportShell from './ReportShell';
 
 export default function CashFlow() {
   return (
-    <ReportShell title="Cash Flow Statement" endpoint="reports/cash-flow"
+    <ReportShell title="Cash Flow Statement" endpoint="reports/cash-flow" serverExport
       renderContent={(res, fmt) => {
         const d = res.data;
         const netFlow = (d.totalInflow || 0) - (d.totalOutflow || 0);

@@ -3,7 +3,7 @@ import ReportShell from './ReportShell';
 export default function Outstanding({ type = 'receivable' }) {
   const title = type === 'receivable' ? 'Sundry Receivables (Debtors)' : 'Sundry Payables (Creditors)';
   return (
-    <ReportShell title={title} endpoint={`reports/outstanding?type=${type}`} showDateRange={false}
+    <ReportShell title={title} endpoint={`reports/outstanding?type=${type}`} showDateRange={false} serverExport
       renderContent={(res, fmt) => {
         const rows = res.data || [];
         return (

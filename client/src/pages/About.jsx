@@ -1,93 +1,115 @@
-import { FiTarget, FiHeart, FiUsers, FiAward } from 'react-icons/fi';
+import { FiAward, FiClock, FiShield, FiTarget, FiUsers } from 'react-icons/fi';
 import Newsletter from '../components/Newsletter';
 
-const timeline = [
-  { year: '1986', event: 'Tally Solutions founded by Shyam Sunder Goenka and Bharat Goenka.' },
-  { year: '1990', event: 'Tally 4.5 launched — India\'s first accounting software on MS-DOS.' },
-  { year: '1999', event: 'Tally 6.3 released with full statutory compliance for India.' },
-  { year: '2006', event: 'Tally 9 introduced — Payroll, multi-currency, and FBT support.' },
-  { year: '2009', event: 'Tally ERP 9 launched — transforming SME business management.' },
-  { year: '2021', event: 'TallyPrime launched — the most intuitive Tally yet.' },
-  { year: '2023', event: 'TallyPrime 4.0 with e-Invoicing and enhanced cloud features.' },
+const values = [
+  {
+    icon: FiTarget,
+    title: 'Clarity first',
+    text: 'Every screen is designed to make business health, accounting status, and next actions visible.',
+  },
+  {
+    icon: FiShield,
+    title: 'Compliance by design',
+    text: 'GST, audit trails, approvals, and exports are treated as everyday workflows, not afterthoughts.',
+  },
+  {
+    icon: FiUsers,
+    title: 'Built for teams',
+    text: 'Owners, accountants, operators, and reviewers can collaborate with permissions and history.',
+  },
+  {
+    icon: FiAward,
+    title: 'Practical automation',
+    text: 'Automation is focused on real accounting time-savers like matching, reminders, imports, and reports.',
+  },
 ];
 
-const values = [
-  { icon: FiTarget, title: 'Our Mission',  desc: 'To create technology that empowers every business person to operate with simplicity and confidence.', color: 'text-[#003087] bg-blue-50' },
-  { icon: FiHeart,  title: 'Our Vision',   desc: 'To be the most trusted and user-friendly business management platform for businesses everywhere.', color: 'text-[#ff6600] bg-orange-50' },
-  { icon: FiUsers,  title: 'Our People',   desc: '5000+ passionate employees across India and globally, committed to building the best software for you.', color: 'text-green-600 bg-green-50' },
-  { icon: FiAward,  title: 'Our Legacy',   desc: '40+ years of innovation, trust, and consistent delivery — making us India\'s #1 accounting software.', color: 'text-purple-600 bg-purple-50' },
+const milestones = [
+  ['Phase 1', 'Accounting controls, financial years, audit trail, and voucher validation'],
+  ['Phase 2', 'Customer, vendor, sales, purchase, and professional invoice workflows'],
+  ['Phase 3', 'Inventory movement, valuation, batch tracking, and low-stock visibility'],
+  ['Phase 4', 'GST reports, exports, e-invoice-ready data, and compliance checks'],
+  ['Phase 5', 'Bank import, reminders, attachments, approvals, and permissions'],
 ];
 
 export default function About() {
   return (
-    <div className="pt-24">
-      {/* Hero */}
-      <div className="bg-gradient-to-br from-[#003087] to-[#0051cc] text-white py-24 px-4 text-center">
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4">About Tally Solutions</h1>
-        <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-          For over 40 years, we've been empowering businesses across India and the world with simple, powerful software.
-        </p>
-      </div>
+    <div className="bg-white pt-28">
+      <section className="border-b border-slate-200 bg-[#fffaf2] py-20">
+        <div className="mx-auto max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+          <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+            About Suraj Books
+          </div>
+          <h1 className="text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+            Accounting software shaped around how modern Indian businesses work
+          </h1>
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-slate-600">
+            We are building a clean, compliance-ready accounting workspace that combines Tally-style speed with cloud-friendly controls, collaboration, and automation.
+          </p>
+        </div>
+      </section>
 
-      {/* Stats */}
-      <div className="bg-white py-12 border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+      <section className="py-14">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 sm:px-6 md:grid-cols-4 lg:px-8">
           {[
-            { num: '40+',  label: 'Years of Innovation' },
-            { num: '2M+',  label: 'Businesses Worldwide' },
-            { num: '150+', label: 'Countries' },
-            { num: '5000+',label: 'Team Members' },
-          ].map((s) => (
-            <div key={s.label}>
-              <div className="text-4xl font-extrabold text-[#003087]">{s.num}</div>
-              <div className="text-sm text-gray-500 mt-1">{s.label}</div>
+            ['5', 'Build phases'],
+            ['20+', 'Core workflows'],
+            ['15+', 'Reports and exports'],
+            ['100%', 'Company-scoped data'],
+          ].map(([value, label]) => (
+            <div key={label} className="rounded-lg border border-slate-200 bg-slate-50 p-5 text-center">
+              <div className="text-3xl font-black text-[#0b57d0]">{value}</div>
+              <div className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">{label}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Values */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">What Drives Us</h2>
+      <section className="border-y border-slate-200 bg-[#f6f8fb] py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 text-center">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Principles
+            </div>
+            <h2 className="text-3xl font-black text-slate-950 sm:text-4xl">What drives the product</h2>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {values.map((v) => (
-              <div key={v.title} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center">
-                <div className={`w-14 h-14 ${v.color} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                  <v.icon size={26} />
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {values.map((value) => (
+              <div key={value.title} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="mb-5 grid h-12 w-12 place-items-center rounded-md bg-blue-50 text-[#0b57d0]">
+                  <value.icon size={22} />
                 </div>
-                <h3 className="font-bold text-gray-900 mb-2">{v.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{v.desc}</p>
+                <h3 className="text-lg font-black text-slate-950">{value.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{value.text}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Timeline */}
-      <section className="py-20 bg-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Our Journey</h2>
-            <p className="text-gray-500 mt-2">Four decades of building trust, one release at a time.</p>
-          </div>
-          <div className="relative">
-            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-200" />
-            <div className="space-y-8">
-              {timeline.map((t, i) => (
-                <div key={t.year} className="relative pl-16">
-                  <div className={`absolute left-0 w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-bold ${i === timeline.length - 1 ? 'bg-[#ff6600]' : 'bg-[#003087]'}`}>
-                    {t.year.slice(2)}
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                    <span className="text-sm font-bold text-[#003087]">{t.year} — </span>
-                    <span className="text-sm text-gray-600">{t.event}</span>
-                  </div>
-                </div>
-              ))}
+      <section className="py-20">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 sm:px-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:px-8">
+          <div>
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.2em] text-[#0b57d0]">
+              Roadmap
             </div>
+            <h2 className="text-3xl font-black text-slate-950">Built in practical phases</h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              The roadmap keeps accounting correctness first, then adds daily workflows, inventory, compliance, and automation.
+            </p>
+          </div>
+          <div className="space-y-4">
+            {milestones.map(([phase, text]) => (
+              <div key={phase} className="flex gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-[#111827] text-white">
+                  <FiClock size={18} />
+                </div>
+                <div>
+                  <div className="font-black text-slate-950">{phase}</div>
+                  <div className="mt-1 text-sm leading-6 text-slate-600">{text}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>

@@ -2,7 +2,7 @@ import ReportShell from './ReportShell';
 
 export default function TrialBalance() {
   return (
-    <ReportShell title="Trial Balance" endpoint="reports/trial-balance"
+    <ReportShell title="Trial Balance" endpoint="reports/trial-balance" serverExport
       renderContent={(res, fmt) => {
         const rows = res.data || [];
         return (

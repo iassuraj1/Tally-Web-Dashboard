@@ -10,13 +10,20 @@ const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: 
 // POST /api/auth/register
 router.post('/register',
   [
-    body('name').trim().notEmpty(),
-    body('email').isEmail(),
-    body('password').isLength({ min: 6 }),
+    body('name').trim().notEmpty().withMessage('Full name is required'),
+    body('email').isEmail().withMessage('Enter a valid email address').normalizeEmail(),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const list = errors.array();
+      return res.status(400).json({
+        success: false,
+        message: list.map((item) => item.msg).join(' '),
+        errors: list,
+      });
+    }
     try {
       const exists = await User.findOne({ email: req.body.email });
       if (exists) return res.status(409).json({ success: false, message: 'Email already registered' });
@@ -30,10 +37,20 @@ router.post('/register',
 
 // POST /api/auth/login
 router.post('/login',
-  [body('email').isEmail(), body('password').notEmpty()],
+  [
+    body('email').isEmail().withMessage('Enter a valid email address').normalizeEmail(),
+    body('password').notEmpty().withMessage('Password is required'),
+  ],
   async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ success: false, errors: errors.array() });
+    if (!errors.isEmpty()) {
+      const list = errors.array();
+      return res.status(400).json({
+        success: false,
+        message: list.map((item) => item.msg).join(' '),
+        errors: list,
+      });
+    }
     try {
       const user = await User.findOne({ email: req.body.email });
       if (!user || !(await user.matchPassword(req.body.password)))

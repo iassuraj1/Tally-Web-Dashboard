@@ -21,7 +21,7 @@ const Section = ({ title, rows, total, fmt, color }) => (
 
 export default function BalanceSheet() {
   return (
-    <ReportShell title="Balance Sheet" endpoint="reports/balance-sheet" showDateRange={false}
+    <ReportShell title="Balance Sheet" endpoint="reports/balance-sheet" showDateRange={false} serverExport
       renderContent={(res, fmt) => {
         const d = res.data;
         return (

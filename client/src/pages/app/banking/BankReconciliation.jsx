@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useCompany } from '../../../context/CompanyContext';
+import { useState, useEffect, useCallback } from 'react';
+import { useCompany } from '../../../context/useCompany';
 import api from '../../../utils/api';
 import { FiCheckCircle, FiCircle, FiRefreshCw } from 'react-icons/fi';
 
@@ -23,7 +23,7 @@ export default function BankReconciliation() {
     });
   }, [company]);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!company || !selBank) return;
     setLoading(true);
     const params = new URLSearchParams();
@@ -32,9 +32,13 @@ export default function BankReconciliation() {
     api.get(`/companies/${company._id}/banking/unreconciled/${selBank}?${params}`)
       .then(r => setEntries(r.data.data || []))
       .finally(() => setLoading(false));
-  };
+  }, [company, selBank, from, to]);
 
-  useEffect(() => { if (selBank) load(); }, [selBank]);
+  useEffect(() => {
+    if (!selBank) return undefined;
+    const id = setTimeout(load, 0);
+    return () => clearTimeout(id);
+  }, [selBank, load]);
 
   const reconcile = async (entry) => {
     const bankDate = prompt('Enter bank statement date (YYYY-MM-DD):', entry.date?.split('T')[0]);

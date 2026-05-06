@@ -10,7 +10,7 @@ const cid = (req) => req.params.companyId;
 
 // Compute balance for one or many ledgers from vouchers
 const computeBalances = async (companyId, ledgerIds) => {
-  const vouchers = await Voucher.find({ company: companyId, isCancelled: false }).select('entries');
+  const vouchers = await Voucher.find({ company: companyId, isCancelled: false, status: 'Approved' }).select('entries');
   const map = {};
   for (const id of ledgerIds) map[id.toString()] = 0;
   for (const v of vouchers) {
@@ -29,6 +29,11 @@ router.get('/', async (req, res) => {
   try {
     const filter = { company: cid(req) };
     if (req.query.group)    filter.group    = req.query.group;
+    if (req.query.partyType) {
+      filter.partyType = req.query.partyType === 'both'
+        ? { $in: ['customer', 'vendor', 'both'] }
+        : { $in: [req.query.partyType, 'both'] };
+    }
     if (req.query.nature)   { /* join via group */ }
     if (req.query.isActive !== undefined) filter.isActive = req.query.isActive === 'true';
     const ledgers = await Ledger.find(filter).populate('group', 'name nature affectsGross isPrimary').sort({ name: 1 });
@@ -76,7 +81,7 @@ router.get('/:id', async (req, res) => {
     const total   = openBal + txnBal;
 
     // Last 10 transactions
-    const vouchers = await Voucher.find({ company: cid(req), 'entries.ledger': ledger._id, isCancelled: false })
+    const vouchers = await Voucher.find({ company: cid(req), 'entries.ledger': ledger._id, isCancelled: false, status: 'Approved' })
       .populate('entries.ledger', 'name').sort({ date: -1 }).limit(10);
 
     const transactions = [];

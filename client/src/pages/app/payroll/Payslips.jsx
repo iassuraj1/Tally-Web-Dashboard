@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useCompany } from '../../../context/CompanyContext';
+import { useState, useEffect, useCallback } from 'react';
+import { useCompany } from '../../../context/useCompany';
 import api from '../../../utils/api';
 import { FiPrinter } from 'react-icons/fi';
 
@@ -95,7 +95,7 @@ export default function Payslips() {
   const [month, setMonth] = useState('');
   const [year,  setYear]  = useState('');
 
-  const load = (detail = null) => {
+  const load = useCallback(() => {
     if (!company) return;
     const params = new URLSearchParams();
     if (month) params.set('month', month);
@@ -104,9 +104,12 @@ export default function Payslips() {
     api.get(`/companies/${company._id}/payroll/payslips?${params}`)
       .then(r => setPayslips(r.data.data || []))
       .finally(() => setLoading(false));
-  };
+  }, [company, month, year]);
 
-  useEffect(load, [company, month, year]);
+  useEffect(() => {
+    const id = setTimeout(load, 0);
+    return () => clearTimeout(id);
+  }, [load]);
 
   const openPayslip = async (id) => {
     const r = await api.get(`/companies/${company._id}/payroll/payslips/${id}`);
