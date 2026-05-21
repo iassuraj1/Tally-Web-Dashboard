@@ -3,14 +3,49 @@ const express     = require('express');
 const cors        = require('cors');
 const helmet      = require('helmet');
 const rateLimit   = require('express-rate-limit');
-const connectDB   = require('./config/db');
+const { connectDB } = require('./config/db');
 const errorHandler= require('./middleware/errorHandler');
 
 const app = express();
-connectDB();
+
+const parseOrigins = (value = '') => value
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  ...parseOrigins(process.env.FRONTEND_ORIGINS),
+]);
+const corsAllowAll = process.env.CORS_ALLOW_ALL === 'true' || process.env.FRONTEND_ORIGINS === '*';
+
+const isPrivateNetworkFrontend = (origin) => {
+  try {
+    const url = new URL(origin);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    if (url.port !== '5173') return false;
+    return (
+      url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(url.hostname) ||
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(url.hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+};
 
 app.use(helmet());
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({
+  credentials: true,
+  origin: (origin, callback) => {
+    if (!origin || corsAllowAll || allowedOrigins.has(origin) || isPrivateNetworkFrontend(origin)) return callback(null, true);
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -56,5 +91,26 @@ app.use('/api/companies/:companyId/advanced',     require('./routes/advanced'));
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const start = async () => {
+  await connectDB();
+
+  const PORT = process.env.PORT || 5000;
+  const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use.`);
+      console.error(`Find it with: netstat -ano | findstr :${PORT}`);
+      console.error('Stop it with: taskkill /PID <PID> /F');
+      console.error('Or set a different PORT in server/.env and update client/vite.config.js to match.');
+      process.exit(1);
+    }
+
+    throw error;
+  });
+};
+
+start().catch((error) => {
+  console.error(`Server startup failed: ${error.message}`);
+  process.exit(1);
+});

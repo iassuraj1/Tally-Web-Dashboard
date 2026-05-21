@@ -4,6 +4,7 @@ import { useCompany } from '../../context/useCompany';
 import api from '../../utils/api';
 import Modal from '../../components/app/Modal';
 import { FiPlus, FiCheck, FiEdit2, FiUsers, FiTrash2 } from 'react-icons/fi';
+import { GST_STATES, getGstStateFromGstin } from '../../data/gstStates';
 
 const emptyForm = { name: '', legalName: '', gstin: '', pan: '', address: '', city: '', state: '', pincode: '', phone: '', email: '' };
 
@@ -62,6 +63,17 @@ export default function Companies() {
     } catch (err) {
       alert(err.response?.data?.message || 'Error saving company');
     } finally { setSaving(false); }
+  };
+
+  const setCompanyField = (name, value) => {
+    setForm((current) => {
+      const next = { ...current, [name]: value };
+      if (name === 'gstin') {
+        const state = getGstStateFromGstin(value);
+        if (state) next.state = state.name;
+      }
+      return next;
+    });
   };
 
   const select = (c) => { setCompany(c); navigate('/app'); };
@@ -186,11 +198,24 @@ export default function Companies() {
             {fields.map((f) => (
               <div key={f.name}>
                 <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
-                <input
-                  type="text" value={form[f.name]} required={f.required}
-                  onChange={(e) => setForm(x => ({ ...x, [f.name]: e.target.value }))}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
-                />
+                {f.name === 'state' ? (
+                  <select
+                    value={form.state}
+                    onChange={(e) => setCompanyField('state', e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                  >
+                    <option value="">Select state / UT</option>
+                    {GST_STATES.map((state) => (
+                      <option key={state.code} value={state.name}>{state.code} - {state.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text" value={form[f.name]} required={f.required}
+                    onChange={(e) => setCompanyField(f.name, f.name === 'gstin' || f.name === 'pan' ? e.target.value.toUpperCase() : e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                  />
+                )}
               </div>
             ))}
           </div>

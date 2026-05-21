@@ -262,6 +262,7 @@ router.get('/summary', requirePermission('view_reports'), async (req, res) => {
         gst: [
           { label: 'CGST', value: round2(gstReport.data?.['6.1']?.taxPayable?.cgst || 0) },
           { label: 'SGST', value: round2(gstReport.data?.['6.1']?.taxPayable?.sgst || 0) },
+          { label: 'UTGST', value: round2(gstReport.data?.['6.1']?.taxPayable?.utgst || 0) },
           { label: 'IGST', value: round2(gstReport.data?.['6.1']?.taxPayable?.igst || 0) },
           { label: 'Cess', value: round2(gstReport.data?.['6.1']?.taxPayable?.cess || 0) },
         ],

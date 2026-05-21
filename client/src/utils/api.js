@@ -23,8 +23,11 @@ api.interceptors.response.use(
     err.userMessage = getApiError(err);
     if (err.response?.status === 401) {
       const requestUrl = err.config?.url || '';
-      const isAuthSubmit = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
-      const isAuthPage = window.location.pathname === '/app/login' || window.location.pathname === '/app/register';
+      const isAuthSubmit = requestUrl.includes('/auth/login') ||
+        requestUrl.includes('/auth/register') ||
+        requestUrl.includes('/auth/verify-email') ||
+        requestUrl.includes('/auth/resend-verification');
+      const isAuthPage = ['/app/login', '/app/register', '/app/verify-email'].includes(window.location.pathname);
 
       localStorage.removeItem('token');
       localStorage.removeItem('currentCompany');

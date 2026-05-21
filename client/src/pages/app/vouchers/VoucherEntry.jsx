@@ -5,23 +5,58 @@ import api, { getApiError } from '../../../utils/api';
 import { FiChevronDown, FiChevronRight, FiPlus, FiTrash2, FiSave, FiPrinter } from 'react-icons/fi';
 import CollaborationPanel from '../../../components/app/CollaborationPanel';
 import Modal from '../../../components/app/Modal';
+import { GST_STATES, getGstStateFromGstin, getGstTaxType, splitGstAmount } from '../../../data/gstStates';
 
 const fmt = (n) => Number(n || 0).toFixed(2);
 
 // Which voucher types have stock items
-const HAS_ITEMS = ['Sales', 'Purchase', 'StockJournal', 'DeliveryNote', 'ReceiptNote'];
+const HAS_ITEMS = ['Sales', 'Purchase', 'CreditNote', 'DebitNote', 'StockJournal', 'DeliveryNote', 'ReceiptNote'];
 // Which types have a single party + entries
 const HAS_PARTY = ['Sales', 'Purchase', 'CreditNote', 'DebitNote'];
 
 const GST_RATES = [0, 5, 12, 18, 28];
 const EMPTY_ENTRY = { ledger: '', type: 'Dr', amount: 0, project: '', narration: '' };
-const EMPTY_ITEM = { item: '', qty: 1, unit: '', rate: 0, amount: 0, discount: 0, gstRate: 0, cgst: 0, sgst: 0, igst: 0, hsnCode: '', godown: '', batchNo: '', expiry: '', serialNumbers: '' };
-const E_INVOICE_TYPES = ['Sales', 'Purchase', 'CreditNote', 'DebitNote'];
-const PURCHASE_MODES = [
-  { id: 'item', label: 'Item Purchase Invoice' },
-  { id: 'service', label: 'Service / Expense Purchase' },
-  { id: 'manual', label: 'Manual Accounting Voucher' },
+const EMPTY_ITEM = { item: '', qty: 1, unit: '', rate: 0, amount: 0, discount: 0, gstRate: 0, cgst: 0, sgst: 0, utgst: 0, igst: 0, hsnCode: '', godown: '', batchNo: '', expiry: '', serialNumbers: '' };
+const defaultEntriesFor = (voucherType) => [
+  { ...EMPTY_ENTRY, type: 'Dr' },
+  { ...EMPTY_ENTRY, type: 'Cr' },
 ];
+const newEntryFor = (voucherType) => ({ ...EMPTY_ENTRY, type: voucherType === 'Journal' ? 'Cr' : 'Dr' });
+const EMPTY_STOCK_ITEM_FORM = {
+  name: '',
+  group: '',
+  unit: '',
+  hsnCode: '',
+  gstRate: 0,
+  costPrice: 0,
+  sellingPrice: 0,
+  openingQty: 0,
+  openingRate: 0,
+  taxability: 'Taxable',
+  valuationMethod: 'Weighted Average',
+};
+const E_INVOICE_TYPES = ['Sales', 'Purchase', 'CreditNote', 'DebitNote'];
+const MAIN_ROOT_GROUP_NAMES = ['Sales Accounts', 'Purchase Accounts'];
+
+const toNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const firstPositiveNumber = (...values) => {
+  for (const value of values) {
+    const number = toNumber(value);
+    if (number > 0) return number;
+  }
+  return 0;
+};
+
+const recalcItemTaxes = (item, taxType) => {
+  const amount = toNumber(item.qty) * toNumber(item.rate) - toNumber(item.discount);
+  return { ...item, amount, ...splitGstAmount(amount, item.gstRate, taxType) };
+};
+
+const recalcItemsTaxes = (items = [], taxType) => items.map((item) => recalcItemTaxes(item, taxType));
 
 export default function VoucherEntry({ voucherType }) {
   const { company }   = useCompany();
@@ -32,18 +67,22 @@ export default function VoucherEntry({ voucherType }) {
   const [ledgers, setLedgers]   = useState([]);
   const [groups, setGroups]     = useState([]);
   const [items, setItems]       = useState([]);
+  const [stockGroups, setStockGroups] = useState([]);
   const [units, setUnits]       = useState([]);
   const [godowns, setGodowns]   = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading]   = useState(false);
   const [saving, setSaving]     = useState(false);
   const [err, setErr]           = useState('');
-  const [purchaseMode, setPurchaseMode] = useState('item');
   const [complianceOpen, setComplianceOpen] = useState(false);
   const [expandedItemRows, setExpandedItemRows] = useState({});
   const [ledgerModal, setLedgerModal] = useState(null);
   const [ledgerSaving, setLedgerSaving] = useState(false);
   const [ledgerErr, setLedgerErr] = useState('');
+  const [stockItemModal, setStockItemModal] = useState(null);
+  const [stockItemSaving, setStockItemSaving] = useState(false);
+  const [stockItemErr, setStockItemErr] = useState('');
+  const [stockItemForm, setStockItemForm] = useState(EMPTY_STOCK_ITEM_FORM);
   const [ledgerForm, setLedgerForm] = useState({
     name: '',
     group: '',
@@ -51,6 +90,9 @@ export default function VoucherEntry({ voucherType }) {
     openingBalanceType: 'Dr',
     partyType: '',
     gstin: '',
+    state: '',
+    address: '',
+    pincode: '',
     phone: '',
     email: '',
   });
@@ -64,10 +106,11 @@ export default function VoucherEntry({ voucherType }) {
     currency: company?.currency || 'INR',
     exchangeRate: 1,
     party: '',
+    accountingLedger: '',
     placeOfSupply: company?.state || '',
     isIGST: false,
     reverseCharge: false,
-    entries: [{ ...EMPTY_ENTRY, type: 'Dr' }, { ...EMPTY_ENTRY, type: 'Cr' }],
+    entries: defaultEntriesFor(voucherType),
     items: [],
     roundOff: 0,
     tdsAmount: 0,
@@ -98,13 +141,15 @@ export default function VoucherEntry({ voucherType }) {
         api.get(`/companies/${cid}/inventory/items`),
         api.get(`/companies/${cid}/inventory/units`),
         api.get(`/companies/${cid}/inventory/godowns`),
+        api.get(`/companies/${cid}/inventory/stock-groups`),
         api.get(`/companies/${cid}/advanced/projects`).catch(() => ({ data: { data: [] } })),
-      ]).then(([l, gr, i, u, g, p]) => {
+      ]).then(([l, gr, i, u, g, sg, p]) => {
         setLedgers(l.data.data || []);
         setGroups(gr.data.data || []);
         setItems(i.data.data   || []);
         setUnits(u.data.data   || []);
         setGodowns(g.data.data || []);
+        setStockGroups(sg.data.data || []);
         setProjects(p.data.data || []);
       });
 
@@ -112,15 +157,25 @@ export default function VoucherEntry({ voucherType }) {
         setLoading(true);
         api.get(`/companies/${cid}/vouchers/${editId}`).then(r => {
           const v = r.data.data;
+          const accountingEntry = (v.entries || []).find((entry) => {
+            const name = String(entry.ledger?.name || '').toLowerCase();
+            const narration = String(entry.narration || '').toLowerCase();
+            if (voucherType === 'Sales') return entry.type === 'Cr' && (name.includes('sales') || narration.includes('sales'));
+            if (voucherType === 'CreditNote') return entry.type === 'Dr' && (name.includes('sales') || narration.includes('sales'));
+            if (voucherType === 'Purchase') return entry.type === 'Dr' && (name.includes('purchase') || narration.includes('purchase'));
+            if (voucherType === 'DebitNote') return entry.type === 'Cr' && (name.includes('purchase') || narration.includes('purchase'));
+            return false;
+          });
           setForm({
             date: v.date?.split('T')[0], voucherNo: v.voucherNo, reference: v.reference || '',
             narration: v.narration || '', party: v.party?._id || '',
             branch: v.branch || '',
             currency: v.currency || company?.currency || 'INR',
             exchangeRate: v.exchangeRate || 1,
+            accountingLedger: accountingEntry?.ledger?._id || accountingEntry?.ledger || '',
             placeOfSupply: v.placeOfSupply || '', isIGST: v.isIGST, reverseCharge: v.reverseCharge,
             entries: v.entries.map(e => ({ ledger: e.ledger?._id || e.ledger, type: e.type, amount: e.amount, project: e.project?._id || e.project || '', narration: e.narration || '' })),
-            items:   v.items.map(i => ({ item: i.item?._id || i.item, qty: i.qty, unit: i.unit?._id || i.unit || '', rate: i.rate, amount: i.amount, discount: i.discount || 0, gstRate: i.gstRate, cgst: i.cgst, sgst: i.sgst, igst: i.igst, hsnCode: i.hsnCode || '', godown: i.godown?._id || '', batchNo: i.batchNo || '', expiry: i.expiry?.split('T')[0] || '', serialNumbers: (i.serialNumbers || []).join(', ') })),
+            items:   v.items.map(i => ({ item: i.item?._id || i.item, qty: i.qty, unit: i.unit?._id || i.unit || '', rate: i.rate, amount: i.amount, discount: i.discount || 0, gstRate: i.gstRate, cgst: i.cgst, sgst: i.sgst, utgst: i.utgst || 0, igst: i.igst, hsnCode: i.hsnCode || '', godown: i.godown?._id || '', batchNo: i.batchNo || '', expiry: i.expiry?.split('T')[0] || '', serialNumbers: (i.serialNumbers || []).join(', ') })),
             roundOff: v.roundOff || 0,
             tdsAmount: v.tdsAmount || 0,
             tcsAmount: v.tcsAmount || 0,
@@ -138,9 +193,6 @@ export default function VoucherEntry({ voucherType }) {
             vehicleType: v.vehicleType || '',
             distance: v.distance || 0,
           });
-          if (voucherType === 'Purchase') {
-            setPurchaseMode((v.items || []).length > 0 ? 'item' : 'manual');
-          }
           setComplianceOpen(Boolean(
             v.irn || v.ackNo || v.ackDate || v.ewayBillNo || v.ewaybill ||
             v.transportMode || v.transporterName || v.transporterId ||
@@ -150,6 +202,8 @@ export default function VoucherEntry({ voucherType }) {
         }).finally(() => setLoading(false));
       } else if (HAS_ITEMS.includes(voucherType)) {
         setForm(f => ({ ...f, items: [{ ...EMPTY_ITEM }], entries: [EMPTY_ENTRY] }));
+      } else {
+        setForm(f => ({ ...f, items: [], entries: defaultEntriesFor(voucherType) }));
       }
     });
   }, [cid, editId, voucherType, company?.currency]);
@@ -158,34 +212,64 @@ export default function VoucherEntry({ voucherType }) {
   const updateItem = (idx, key, value) => {
     setForm(f => {
       const newItems = [...f.items];
-      newItems[idx] = { ...newItems[idx], [key]: value };
-      const it = newItems[idx];
-      const base   = Number(it.qty) * Number(it.rate) - Number(it.discount || 0);
-      const gRate  = Number(it.gstRate) / 100;
-      if (f.isIGST) { newItems[idx] = { ...newItems[idx], amount: base, igst: base * gRate, cgst: 0, sgst: 0 }; }
-      else           { newItems[idx] = { ...newItems[idx], amount: base, cgst: base * gRate / 2, sgst: base * gRate / 2, igst: 0 }; }
+      const patch = typeof key === 'object' ? key : { [key]: value };
+      newItems[idx] = { ...(newItems[idx] || EMPTY_ITEM), ...patch };
+      const taxType = getGstTaxType(company?.state, f.placeOfSupply || company?.state);
+      newItems[idx] = recalcItemTaxes(newItems[idx], taxType);
       return { ...f, items: newItems };
     });
   };
 
-  const addEntry = () => setForm(f => ({ ...f, entries: [...f.entries, { ...EMPTY_ENTRY }] }));
+  const selectStockItem = (idx, itemId) => {
+    const selected = items.find((item) => item._id === itemId);
+    if (!selected) {
+      updateItem(idx, { item: itemId });
+      return;
+    }
+
+    updateItem(idx, {
+      item: itemId,
+      unit: selected.unit?._id || selected.unit || '',
+      hsnCode: selected.hsnCode || '',
+      gstRate: toNumber(selected.gstRate),
+      rate: ['Purchase', 'DebitNote'].includes(voucherType)
+        ? firstPositiveNumber(selected.costPrice, selected.standardCost, selected.openingRate, selected.sellingPrice, selected.mrp)
+        : firstPositiveNumber(selected.sellingPrice, selected.mrp, selected.costPrice, selected.standardCost, selected.openingRate),
+    });
+  };
+
+  const setPlaceOfSupply = (placeOfSupply) => {
+    setForm((f) => {
+      const taxType = getGstTaxType(company?.state, placeOfSupply || company?.state);
+      return {
+        ...f,
+        placeOfSupply,
+        isIGST: taxType === 'IGST',
+        items: recalcItemsTaxes(f.items, taxType),
+      };
+    });
+  };
+
+  const setParty = (partyId) => {
+    const party = ledgers.find((ledger) => ledger._id === partyId);
+    setForm((f) => {
+      const placeOfSupply = party?.state || f.placeOfSupply || company?.state || '';
+      const taxType = getGstTaxType(company?.state, placeOfSupply);
+      return {
+        ...f,
+        party: partyId,
+        placeOfSupply,
+        isIGST: taxType === 'IGST',
+        items: recalcItemsTaxes(f.items, taxType),
+      };
+    });
+  };
+
+  const addEntry = () => setForm(f => ({ ...f, entries: [...f.entries, newEntryFor(voucherType)] }));
   const removeEntry = (i) => setForm(f => ({ ...f, entries: f.entries.filter((_, idx) => idx !== i) }));
   const updateEntry = (i, key, val) => setForm(f => { const e = [...f.entries]; e[i] = { ...e[i], [key]: key === 'amount' ? +val : val }; return { ...f, entries: e }; });
   const addServiceLine = () => setForm(f => ({ ...f, entries: [...f.entries, { ...EMPTY_ENTRY, type: 'Dr' }] }));
   const updateServiceLine = (i, key, val) => updateEntry(i, key, key === 'type' ? 'Dr' : val);
-
-  const setMode = (mode) => {
-    setPurchaseMode(mode);
-    setForm((f) => {
-      if (mode === 'item') {
-        return { ...f, items: f.items.length ? f.items : [{ ...EMPTY_ITEM }], entries: f.entries.length ? f.entries : [{ ...EMPTY_ENTRY }] };
-      }
-      if (mode === 'service') {
-        return { ...f, items: [], entries: f.entries.length ? f.entries.map((entry) => ({ ...entry, type: 'Dr' })) : [{ ...EMPTY_ENTRY, type: 'Dr' }] };
-      }
-      return { ...f, items: [], entries: f.entries.length ? f.entries : [{ ...EMPTY_ENTRY, type: 'Dr' }, { ...EMPTY_ENTRY, type: 'Cr' }] };
-    });
-  };
 
   const partyDefaults = () => {
     const isVendor = ['Purchase', 'DebitNote'].includes(voucherType);
@@ -208,6 +292,9 @@ export default function VoucherEntry({ voucherType }) {
       openingBalanceType: defaults.openingBalanceType || 'Dr',
       partyType: defaults.partyType || '',
       gstin: '',
+      state: '',
+      address: '',
+      pincode: '',
       phone: '',
       email: '',
     });
@@ -220,18 +307,35 @@ export default function VoucherEntry({ voucherType }) {
     setLedgerSaving(true);
     setLedgerErr('');
     try {
+      const address = String(ledgerForm.address || '').trim();
       const body = {
         ...ledgerForm,
         name: ledgerForm.name.trim(),
+        address,
+        ...(ledgerModal?.target === 'party' && address ? {
+          billingAddress: address,
+          shippingAddress: address,
+        } : {}),
+        pincode: String(ledgerForm.pincode || '').trim(),
         openingBalance: Number(ledgerForm.openingBalance || 0),
         isActive: true,
         gstApplicable: Boolean(ledgerForm.gstin),
+        gstTreatment: ledgerForm.gstin ? 'registered' : '',
+        gstType: ledgerForm.gstin ? 'Regular' : '',
       };
       const res = await api.post(`/companies/${cid}/ledgers`, body);
       const saved = res.data.data;
       setLedgers((rows) => [...rows, saved].sort((a, b) => a.name.localeCompare(b.name)));
       if (ledgerModal?.target === 'party') {
-        setForm((f) => ({ ...f, party: saved._id }));
+        const placeOfSupply = saved.state || company?.state || '';
+        const taxType = getGstTaxType(company?.state, placeOfSupply);
+        setForm((f) => ({
+          ...f,
+          party: saved._id,
+          placeOfSupply,
+          isIGST: taxType === 'IGST',
+          items: recalcItemsTaxes(f.items, taxType),
+        }));
       }
       if (ledgerModal?.target === 'entry') {
         setForm((f) => {
@@ -248,38 +352,138 @@ export default function VoucherEntry({ voucherType }) {
     }
   };
 
+  const openStockItemModal = (rowIndex) => {
+    setStockItemForm({
+      ...EMPTY_STOCK_ITEM_FORM,
+      unit: units[0]?._id || '',
+      group: stockGroups[0]?._id || '',
+    });
+    setStockItemErr('');
+    setStockItemModal({ rowIndex });
+  };
+
+  const saveFastStockItem = async (event) => {
+    event.preventDefault();
+    setStockItemSaving(true);
+    setStockItemErr('');
+    try {
+      const body = {
+        ...stockItemForm,
+        name: stockItemForm.name.trim(),
+        gstRate: Number(stockItemForm.gstRate || 0),
+        costPrice: Number(stockItemForm.costPrice || 0),
+        sellingPrice: Number(stockItemForm.sellingPrice || 0),
+        openingQty: Number(stockItemForm.openingQty || 0),
+        openingRate: Number(stockItemForm.openingRate || 0),
+      };
+      const res = await api.post(`/companies/${cid}/inventory/items`, body);
+      const saved = res.data.data;
+      setItems((rows) => [...rows, saved].sort((a, b) => a.name.localeCompare(b.name)));
+
+      if (stockItemModal?.rowIndex != null) {
+        setForm((f) => {
+          const nextItems = [...f.items];
+          const line = nextItems[stockItemModal.rowIndex] || { ...EMPTY_ITEM };
+          const rate = ['Purchase', 'DebitNote'].includes(voucherType)
+            ? Number(saved.costPrice || saved.standardCost || saved.sellingPrice || 0)
+            : Number(saved.sellingPrice || saved.costPrice || 0);
+          const unit = saved.unit?._id || saved.unit || stockItemForm.unit || '';
+          const taxTypeForLine = getGstTaxType(company?.state, f.placeOfSupply || company?.state);
+          nextItems[stockItemModal.rowIndex] = recalcItemTaxes({
+            ...line,
+            item: saved._id,
+            unit,
+            hsnCode: saved.hsnCode || '',
+            gstRate: Number(saved.gstRate || 0),
+            rate,
+          }, taxTypeForLine);
+          return { ...f, items: nextItems };
+        });
+      }
+
+      setStockItemModal(null);
+    } catch (error) {
+      setStockItemErr(getApiError(error, 'Could not create stock item'));
+    } finally {
+      setStockItemSaving(false);
+    }
+  };
+
   const addItem = () => setForm(f => ({ ...f, items: [...f.items, { ...EMPTY_ITEM }] }));
   const removeItem = (i) => setForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
   const toggleItemDetails = (idx) => setExpandedItemRows((rows) => ({ ...rows, [idx]: !rows[idx] }));
 
   const isPurchase = voucherType === 'Purchase';
-  const isPurchaseItem = isPurchase && purchaseMode === 'item';
-  const isPurchaseService = isPurchase && purchaseMode === 'service';
-  const isPurchaseManual = isPurchase && purchaseMode === 'manual';
-  const showStockItems = HAS_ITEMS.includes(voucherType) && (!isPurchase || isPurchaseItem);
-  const showManualAccounting = !isPurchase || isPurchaseManual;
-  const showAccountingPreview = isPurchaseItem || isPurchaseService;
+  const isCreditNote = voucherType === 'CreditNote';
+  const isDebitNote = voucherType === 'DebitNote';
+  const isPurchaseItem = isPurchase;
+  const isPurchaseService = false;
+  const showStockItems = HAS_ITEMS.includes(voucherType);
+  const isSalesStockVoucher = voucherType === 'Sales' && showStockItems;
+  const isCreditNoteStockVoucher = isCreditNote && showStockItems;
+  const isPurchaseStockVoucher = isPurchaseItem;
+  const isDebitNoteStockVoucher = isDebitNote && showStockItems;
+  const usesSalesLedger = isSalesStockVoucher || isCreditNoteStockVoucher;
+  const usesPurchaseLedger = isPurchaseStockVoucher || isDebitNoteStockVoucher;
+  const isVendorParty = isPurchase || isDebitNote;
+  const showManualAccounting = !showStockItems;
+  const useGeneratedAccountingEntries = usesSalesLedger || usesPurchaseLedger;
+  const showAccountingPreview = false;
   const selectedParty = ledgers.find((ledger) => ledger._id === form.party);
+  const mainRootGroups = MAIN_ROOT_GROUP_NAMES
+    .map((name) => groups.find((group) => group.name === name))
+    .filter(Boolean);
+  const mainRootGroupIds = new Set(mainRootGroups.map((group) => String(group._id)));
+  const groupsByNature = ['Assets', 'Liabilities', 'Income', 'Expenses'].map((nature) => ({
+    nature,
+    groups: groups.filter((group) => group.nature === nature && !mainRootGroupIds.has(String(group._id))),
+  }));
+  const quickLedgerGroupOptions = [
+    ...mainRootGroups,
+    ...groupsByNature.flatMap(({ groups: natureGroups }) => natureGroups),
+  ];
+  const taxType = getGstTaxType(company?.state, form.placeOfSupply || selectedParty?.state || company?.state);
+  const taxTypeLabel = taxType === 'IGST' ? 'IGST' : taxType === 'UTGST' ? 'CGST + UTGST' : 'CGST + SGST';
+  const calculatedItems = form.items.map((item) => recalcItemTaxes(item, taxType));
   const findLedger = (...names) => ledgers.find((ledger) => names.some((name) => ledger.name?.toLowerCase() === name.toLowerCase()));
+  const salesLedger = findLedger('Sales') || ledgers.find((ledger) => ledger.group?.name === 'Sales Accounts');
   const purchaseLedger = findLedger('Purchase') || ledgers.find((ledger) => ledger.group?.name === 'Purchase Accounts');
+  const showAccountingLedgerSelector = usesSalesLedger || usesPurchaseLedger;
+  const accountingGroupName = usesPurchaseLedger ? 'Purchase Accounts' : 'Sales Accounts';
+  const accountingLedgerLabel = usesPurchaseLedger ? 'Purchase Account' : 'Sales Account';
+  const accountingLedgerOptions = ledgers.filter((ledger) => ledger.group?.name === accountingGroupName);
+  const selectedAccountingLedger = accountingLedgerOptions.find((ledger) => ledger._id === form.accountingLedger)
+    || (usesPurchaseLedger ? purchaseLedger : salesLedger);
+  const accountingLedgerValue = form.accountingLedger || selectedAccountingLedger?._id || '';
+  const cashLedger = findLedger('Cash');
   const roundOffLedger = findLedger('Round Off');
   const tdsLedger = findLedger('TDS Payable');
   const tcsLedger = findLedger('TCS Receivable', 'TCS Payable');
   const taxLedgers = {
-    cgst: findLedger('CGST Input'),
-    sgst: findLedger('SGST Input'),
-    igst: findLedger('IGST Input'),
+    input: {
+      cgst: findLedger('CGST Input'),
+      sgst: findLedger('SGST Input'),
+      utgst: findLedger('UTGST Input'),
+      igst: findLedger('IGST Input'),
+    },
+    output: {
+      cgst: findLedger('CGST Output'),
+      sgst: findLedger('SGST Output'),
+      utgst: findLedger('UTGST Output'),
+      igst: findLedger('IGST Output'),
+    },
   };
   const serviceLines = form.entries.filter((entry) => entry.type === 'Dr' && (entry.ledger || Number(entry.amount || 0) > 0));
   const serviceSubtotal = serviceLines.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const itemTotals = {
-    subtotal: form.items.reduce((s, i) => s + Number(i.amount || 0), 0),
-    cgst:     form.items.reduce((s, i) => s + Number(i.cgst   || 0), 0),
-    sgst:     form.items.reduce((s, i) => s + Number(i.sgst   || 0), 0),
-    igst:     form.items.reduce((s, i) => s + Number(i.igst   || 0), 0),
+    subtotal: calculatedItems.reduce((s, i) => s + Number(i.amount || 0), 0),
+    cgst:     calculatedItems.reduce((s, i) => s + Number(i.cgst   || 0), 0),
+    sgst:     calculatedItems.reduce((s, i) => s + Number(i.sgst   || 0), 0),
+    utgst:    calculatedItems.reduce((s, i) => s + Number(i.utgst  || 0), 0),
+    igst:     calculatedItems.reduce((s, i) => s + Number(i.igst   || 0), 0),
   };
-  const totals = isPurchaseService ? { subtotal: serviceSubtotal, cgst: 0, sgst: 0, igst: 0 } : itemTotals;
-  const grandTotal = totals.subtotal + totals.cgst + totals.sgst + totals.igst + Number(form.roundOff || 0) - Number(form.tdsAmount || 0) + Number(form.tcsAmount || 0);
+  const totals = isPurchaseService ? { subtotal: serviceSubtotal, cgst: 0, sgst: 0, utgst: 0, igst: 0 } : itemTotals;
+  const grandTotal = totals.subtotal + totals.cgst + totals.sgst + totals.utgst + totals.igst + Number(form.roundOff || 0) - Number(form.tdsAmount || 0) + Number(form.tcsAmount || 0);
   const baseTotal = grandTotal * Number(form.exchangeRate || 1);
   const addPreviewRow = (rows, ledger, fallbackName, type, amount, narration = '') => {
     const roundedAmount = Number(amount || 0);
@@ -294,11 +498,37 @@ export default function VoucherEntry({ voucherType }) {
     }];
   };
   let generatedAccountingEntries = [];
-  if (isPurchaseItem) {
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, purchaseLedger, 'Purchase', 'Dr', totals.subtotal, 'Taxable purchase value');
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.cgst, 'CGST Input', 'Dr', totals.cgst, 'Input CGST');
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.sgst, 'SGST Input', 'Dr', totals.sgst, 'Input SGST');
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.igst, 'IGST Input', 'Dr', totals.igst, 'Input IGST');
+  if (isSalesStockVoucher) {
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedParty || cashLedger, 'Party / Cash', 'Dr', grandTotal, 'Customer receivable');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedAccountingLedger, 'Sales', 'Cr', totals.subtotal, 'Taxable sales value');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.cgst, 'CGST Output', 'Cr', totals.cgst, 'Output CGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.sgst, 'SGST Output', 'Cr', totals.sgst, 'Output SGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.utgst, 'UTGST Output', 'Cr', totals.utgst, 'Output UTGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.igst, 'IGST Output', 'Cr', totals.igst, 'Output IGST');
+  }
+  if (isCreditNoteStockVoucher) {
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedAccountingLedger, 'Sales', 'Dr', totals.subtotal, 'Sales return value');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.cgst, 'CGST Output', 'Dr', totals.cgst, 'Output CGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.sgst, 'SGST Output', 'Dr', totals.sgst, 'Output SGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.utgst, 'UTGST Output', 'Dr', totals.utgst, 'Output UTGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.output.igst, 'IGST Output', 'Dr', totals.igst, 'Output IGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedParty, 'Customer', 'Cr', grandTotal, 'Customer credit');
+  }
+  if (isPurchaseStockVoucher) {
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedAccountingLedger, 'Purchase', 'Dr', totals.subtotal, 'Taxable purchase value');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.cgst, 'CGST Input', 'Dr', totals.cgst, 'Input CGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.sgst, 'SGST Input', 'Dr', totals.sgst, 'Input SGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.utgst, 'UTGST Input', 'Dr', totals.utgst, 'Input UTGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.igst, 'IGST Input', 'Dr', totals.igst, 'Input IGST');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedParty, 'Supplier', 'Cr', grandTotal, 'Supplier payable');
+  }
+  if (isDebitNoteStockVoucher) {
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedParty, 'Supplier', 'Dr', grandTotal, 'Supplier debit');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedAccountingLedger, 'Purchase', 'Cr', totals.subtotal, 'Purchase return value');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.cgst, 'CGST Input', 'Cr', totals.cgst, 'Input CGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.sgst, 'SGST Input', 'Cr', totals.sgst, 'Input SGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.utgst, 'UTGST Input', 'Cr', totals.utgst, 'Input UTGST reversal');
+    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, taxLedgers.input.igst, 'IGST Input', 'Cr', totals.igst, 'Input IGST reversal');
   }
   if (isPurchaseService) {
     generatedAccountingEntries = serviceLines.map((entry) => {
@@ -312,16 +542,22 @@ export default function VoucherEntry({ voucherType }) {
         narration: entry.narration || 'Service / expense purchase',
       };
     }).filter((entry) => Number(entry.amount || 0) > 0 || entry.ledger);
-  }
-  if (isPurchaseItem || isPurchaseService) {
-    if (Number(form.roundOff || 0) > 0) {
-      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, roundOffLedger, 'Round Off', 'Dr', form.roundOff, 'Round off');
-    } else if (Number(form.roundOff || 0) < 0) {
-      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, roundOffLedger, 'Round Off', 'Cr', Math.abs(Number(form.roundOff)), 'Round off');
-    }
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tcsLedger, 'TCS Receivable', 'Dr', form.tcsAmount, 'TCS on purchase');
     generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, selectedParty, 'Supplier', 'Cr', grandTotal, 'Supplier payable');
-    generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tdsLedger, 'TDS Payable', 'Cr', form.tdsAmount, 'TDS deducted');
+  }
+  if (useGeneratedAccountingEntries) {
+    const usesSalesAdjustments = isSalesStockVoucher || isDebitNoteStockVoucher;
+    if (Number(form.roundOff || 0) > 0) {
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, roundOffLedger, 'Round Off', usesSalesAdjustments ? 'Cr' : 'Dr', form.roundOff, 'Round off');
+    } else if (Number(form.roundOff || 0) < 0) {
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, roundOffLedger, 'Round Off', usesSalesAdjustments ? 'Dr' : 'Cr', Math.abs(Number(form.roundOff)), 'Round off');
+    }
+    if (usesSalesAdjustments) {
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tcsLedger, 'TCS Payable', 'Cr', form.tcsAmount, 'TCS on sales');
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tdsLedger, 'TDS Receivable', 'Dr', form.tdsAmount, 'TDS deducted by customer');
+    } else {
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tcsLedger, 'TCS Receivable', 'Dr', form.tcsAmount, 'TCS on purchase');
+      generatedAccountingEntries = addPreviewRow(generatedAccountingEntries, tdsLedger, 'TDS Payable', 'Cr', form.tdsAmount, 'TDS deducted');
+    }
   }
   const generatedEntriesReady = generatedAccountingEntries.length > 0 && generatedAccountingEntries.every((entry) => entry.ledger && Number(entry.amount || 0) > 0);
   const generatedEntriesForSave = generatedEntriesReady
@@ -336,27 +572,52 @@ export default function VoucherEntry({ voucherType }) {
   const accountingCreditTotal = generatedAccountingEntries.filter((entry) => entry.type === 'Cr').reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const dateLabel = isPurchase ? 'Invoice Date *' : 'Date *';
   const voucherNoLabel = isPurchase ? 'Internal Voucher No' : 'Voucher No (auto if empty)';
-  const referenceLabel = isPurchase ? 'Supplier Invoice No.' : 'Reference / Bill No';
-  const partyLabel = isPurchase ? 'Supplier' : 'Party';
-  const partyPlaceholder = isPurchase ? 'Select supplier...' : 'Select party...';
+  const referenceLabel = isVendorParty ? 'Supplier Invoice No.' : 'Reference / Bill No';
+  const partyLabel = isVendorParty ? 'Supplier' : isCreditNote ? 'Customer' : 'Party';
+  const partyPlaceholder = isVendorParty ? 'Select supplier...' : isCreditNote ? 'Select customer...' : 'Select party...';
+  const itemById = new Map(items.map((item) => [item._id, item]));
+  const stockQtyFor = (itemId) => Number(itemById.get(itemId)?.currentQty ?? itemById.get(itemId)?.openingQty ?? 0);
+  const stockNameFor = (itemId) => itemById.get(itemId)?.name || 'selected item';
+  const stockWarningsForSave = () => {
+    if (editId || !['Sales', 'DebitNote', 'DeliveryNote'].includes(voucherType)) return [];
+    const required = new Map();
+    form.items.forEach((line) => {
+      if (!line.item) return;
+      required.set(line.item, Number(required.get(line.item) || 0) + Number(line.qty || 0));
+    });
+    return [...required.entries()]
+      .filter(([itemId, qty]) => qty > stockQtyFor(itemId))
+      .map(([itemId, qty]) => `${stockNameFor(itemId)}: available ${stockQtyFor(itemId)}, requested ${qty}`);
+  };
 
   const save = async (e) => {
-    e.preventDefault(); setSaving(true); setErr('');
+    e.preventDefault(); setErr('');
+    const stockWarnings = stockWarningsForSave();
+    if (stockWarnings.length) {
+      setErr(`Insufficient stock. ${stockWarnings.join(' ')}`);
+      return;
+    }
+    setSaving(true);
     try {
       const status = e.nativeEvent?.submitter?.value || form.status || 'Submitted';
-      const manualEntries = form.entries.map((entry) => ({ ...entry, project: entry.project || undefined }));
-      const entries = showAccountingPreview ? generatedEntriesForSave : manualEntries;
+      const manualEntries = form.entries
+        .filter((entry) => entry.ledger || Number(entry.amount || 0) > 0)
+        .map((entry) => ({ ...entry, project: entry.project || undefined }));
+      const entries = useGeneratedAccountingEntries ? generatedEntriesForSave : manualEntries;
       const voucherItems = showStockItems
-        ? form.items.map((item) => ({
+        ? calculatedItems.map((item) => ({
           ...item,
           serialNumbers: String(item.serialNumbers || '').split(',').map((s) => s.trim()).filter(Boolean),
           expiry: item.expiry || undefined,
         }))
         : [];
+      const voucherForm = { ...form };
+      delete voucherForm.accountingLedger;
       const body = {
-        ...form, voucherType, status,
+        ...voucherForm, voucherType, status,
         subtotal: totals.subtotal, totalCGST: totals.cgst, totalSGST: totals.sgst,
-        totalIGST: totals.igst, total: grandTotal,
+        totalUTGST: totals.utgst, totalIGST: totals.igst, total: grandTotal,
+        isIGST: taxType === 'IGST',
         baseTotal,
         party: form.party || undefined,
         entries,
@@ -431,9 +692,9 @@ export default function VoucherEntry({ voucherType }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">{partyLabel}</label>
                 <div className="flex gap-2">
-                  <select required={isPurchase} value={form.party} onChange={e => setForm(f => ({ ...f, party: e.target.value }))} className="min-w-0 flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
+                  <select required={HAS_PARTY.includes(voucherType)} value={form.party} onChange={e => setParty(e.target.value)} className="min-w-0 flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
                     <option value="">{partyPlaceholder}</option>
-                    {partyLedgers.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
+                    {partyLedgers.map(l => <option key={l._id} value={l._id}>{l.name}{l.state ? ` - ${l.state}` : ''}</option>)}
                   </select>
                   <button type="button" title="Create party ledger" onClick={() => openLedgerModal('party')} className="h-10 w-10 shrink-0 rounded-xl border border-[#003087] text-[#003087] hover:bg-blue-50 flex items-center justify-center">
                     <FiPlus size={15} />
@@ -442,12 +703,31 @@ export default function VoucherEntry({ voucherType }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Place of Supply</label>
-                <input value={form.placeOfSupply} onChange={e => setForm(f => ({ ...f, placeOfSupply: e.target.value }))} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+                <select value={form.placeOfSupply} onChange={e => setPlaceOfSupply(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
+                  <option value="">Select state / UT</option>
+                  {GST_STATES.map((state) => <option key={state.code} value={state.name}>{state.code} - {state.name}</option>)}
+                </select>
               </div>
+              {showAccountingLedgerSelector && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">{accountingLedgerLabel}</label>
+                  <select
+                    required
+                    value={accountingLedgerValue}
+                    onChange={e => setForm(f => ({ ...f, accountingLedger: e.target.value }))}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+                  >
+                    <option value="">Select {accountingLedgerLabel.toLowerCase()}</option>
+                    {accountingLedgerOptions.map((ledger) => (
+                      <option key={ledger._id} value={ledger._id}>{ledger.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-center gap-4 pt-4">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={form.isIGST} onChange={e => setForm(f => ({ ...f, isIGST: e.target.checked }))} /> IGST (Inter-state)
-                </label>
+                <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-[#003087]">
+                  {taxTypeLabel}
+                </div>
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={form.reverseCharge} onChange={e => setForm(f => ({ ...f, reverseCharge: e.target.checked }))} /> Reverse Charge
                 </label>
@@ -456,27 +736,6 @@ export default function VoucherEntry({ voucherType }) {
           )}
         </div>
       </div>
-
-      {isPurchase && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-          <div className="grid sm:grid-cols-3 gap-2">
-            {PURCHASE_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => setMode(mode.id)}
-                className={`px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
-                  purchaseMode === mode.id
-                    ? 'bg-[#003087] text-white border-[#003087]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {isPurchaseService && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -534,7 +793,7 @@ export default function VoucherEntry({ voucherType }) {
       {/* Accounting entries */}
       {showManualAccounting && <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-900">{isPurchaseManual ? 'Manual Accounting Entries' : 'Accounting Entries'}</h3>
+          <h3 className="font-bold text-gray-900">Accounting Entries</h3>
           <button type="button" onClick={addEntry} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#003087] border border-[#003087] rounded-lg hover:bg-blue-50">
             <FiPlus size={13} /> Add Row
           </button>
@@ -602,48 +861,56 @@ export default function VoucherEntry({ voucherType }) {
       {/* Stock items (for sales/purchase) */}
       {showStockItems && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
             <h3 className="font-bold text-gray-900">{isPurchase ? 'Items / Stock Details' : 'Stock Items'}</h3>
-            <button type="button" onClick={addItem} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#003087] border border-[#003087] rounded-lg hover:bg-blue-50">
-              <FiPlus size={13} /> Add Item
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => openStockItemModal(Math.max(form.items.length - 1, 0))} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#003087] border border-[#003087] rounded-lg hover:bg-blue-50">
+                <FiPlus size={13} /> New Stock Item
+              </button>
+              <button type="button" onClick={addItem} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#003087] border border-[#003087] rounded-lg hover:bg-blue-50">
+                <FiPlus size={13} /> Add Row
+              </button>
+            </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-xs">
+            <table className="w-full min-w-[940px] text-xs">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  {['Item','Qty','Unit','Rate','Disc','Taxable','GST%','Tax','Line Total','Details',''].map(h => (
+                  {['Item','Stock','Qty','Unit','Rate','Disc','Taxable','GST%','Tax','Line Total','Details',''].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {form.items.map((it, idx) => (
+                {calculatedItems.map((it, idx) => (
                   <Fragment key={idx}>
                   <tr className="border-b border-gray-50">
                     <td className="px-2 py-1.5 min-w-40">
-                      <select value={it.item} onChange={e => { const sel = items.find(i => i._id === e.target.value); updateItem(idx, 'item', e.target.value); if (sel) { updateItem(idx, 'gstRate', sel.gstRate); updateItem(idx, 'hsnCode', sel.hsnCode || ''); updateItem(idx, 'rate', sel.costPrice || sel.sellingPrice || 0); updateItem(idx, 'unit', sel.unit?._id || ''); } }} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#003087]">
+                      <select value={it.item} onChange={e => selectStockItem(idx, e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#003087]">
                         <option value="">Select…</option>
                         {items.map(i => <option key={i._id} value={i._id}>{i.name}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 w-20"><input type="number" step="0.001" min="0" value={it.qty} onChange={e => updateItem(idx,'qty',+e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
+                    <td className="px-2 py-1.5 w-20 font-mono text-gray-500">
+                      {it.item ? stockQtyFor(it.item).toLocaleString('en-IN') : '-'}
+                    </td>
+                    <td className="px-2 py-1.5 w-20"><input type="number" step="0.001" min="0" value={it.qty} onChange={e => updateItem(idx,'qty',toNumber(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
                     <td className="px-2 py-1.5 w-20">
                       <select value={it.unit} onChange={e => updateItem(idx,'unit',e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none">
                         <option value="">—</option>
                         {units.map(u => <option key={u._id} value={u._id}>{u.symbol}</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 w-24"><input type="number" step="0.01" value={it.rate} onChange={e => updateItem(idx,'rate',+e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
-                    <td className="px-2 py-1.5 w-20"><input type="number" step="0.01" value={it.discount} onChange={e => updateItem(idx,'discount',+e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
+                    <td className="px-2 py-1.5 w-24"><input type="number" step="0.01" value={it.rate} onChange={e => updateItem(idx,'rate',toNumber(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
+                    <td className="px-2 py-1.5 w-20"><input type="number" step="0.01" value={it.discount} onChange={e => updateItem(idx,'discount',toNumber(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none" /></td>
                     <td className="px-2 py-1.5 w-24 font-semibold text-gray-800">{fmt(it.amount)}</td>
                     <td className="px-2 py-1.5 w-16">
-                      <select value={it.gstRate} onChange={e => updateItem(idx,'gstRate',+e.target.value)} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none">
+                      <select value={it.gstRate} onChange={e => updateItem(idx,'gstRate',toNumber(e.target.value))} className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none">
                         {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                       </select>
                     </td>
-                    <td className="px-2 py-1.5 w-24 text-gray-600">{fmt(Number(it.cgst || 0) + Number(it.sgst || 0) + Number(it.igst || 0))}</td>
-                    <td className="px-2 py-1.5 w-24 font-semibold text-gray-800">{fmt(Number(it.amount || 0) + Number(it.cgst || 0) + Number(it.sgst || 0) + Number(it.igst || 0))}</td>
+                    <td className="px-2 py-1.5 w-24 text-gray-600">{fmt(Number(it.cgst || 0) + Number(it.sgst || 0) + Number(it.utgst || 0) + Number(it.igst || 0))}</td>
+                    <td className="px-2 py-1.5 w-24 font-semibold text-gray-800">{fmt(Number(it.amount || 0) + Number(it.cgst || 0) + Number(it.sgst || 0) + Number(it.utgst || 0) + Number(it.igst || 0))}</td>
                     <td className="px-2 py-1.5 w-20">
                       <button type="button" onClick={() => toggleItemDetails(idx)} className="inline-flex items-center gap-1 text-xs font-semibold text-[#003087] hover:text-[#ff6600]">
                         {expandedItemRows[idx] ? <FiChevronDown size={13} /> : <FiChevronRight size={13} />} Details
@@ -663,7 +930,7 @@ export default function VoucherEntry({ voucherType }) {
                   </tr>
                   {expandedItemRows[idx] && (
                     <tr className="bg-gray-50/70 border-b border-gray-100">
-                      <td colSpan={11} className="px-4 py-3">
+                      <td colSpan={12} className="px-4 py-3">
                         <div className="grid sm:grid-cols-5 gap-3">
                           <div>
                             <label className="block text-[11px] font-semibold text-gray-500 mb-1">HSN / SAC</label>
@@ -700,7 +967,7 @@ export default function VoucherEntry({ voucherType }) {
           {/* Totals */}
           <div className="flex justify-end px-5 py-4 bg-gray-50 border-t border-gray-100">
             <div className="text-sm space-y-1.5 min-w-48">
-              {[['Subtotal', totals.subtotal], ['CGST', totals.cgst], ['SGST', totals.sgst], ['IGST', totals.igst]].map(([label, val]) => (
+              {[['Subtotal', totals.subtotal], ['CGST', totals.cgst], ['SGST', totals.sgst], ['UTGST', totals.utgst], ['IGST', totals.igst]].map(([label, val]) => (
                 <div key={label} className="flex justify-between gap-8 text-gray-600">
                   <span>{label}</span><span className="font-medium">₹{fmt(val)}</span>
                 </div>
@@ -899,12 +1166,8 @@ export default function VoucherEntry({ voucherType }) {
             className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
           >
             <option value="">Select group</option>
-            {['Assets', 'Liabilities', 'Income', 'Expenses'].map((nature) => (
-              <optgroup key={nature} label={nature}>
-                {groups.filter((group) => group.nature === nature).map((group) => (
-                  <option key={group._id} value={group._id}>{group.name}</option>
-                ))}
-              </optgroup>
+            {quickLedgerGroupOptions.map((group) => (
+              <option key={group._id} value={group._id}>{group.name}</option>
             ))}
           </select>
         </div>
@@ -939,8 +1202,40 @@ export default function VoucherEntry({ voucherType }) {
               <input
                 value={ledgerForm.gstin}
                 maxLength={15}
-                onChange={(e) => setLedgerForm((f) => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                onChange={(e) => {
+                  const gstin = e.target.value.toUpperCase();
+                  const state = getGstStateFromGstin(gstin);
+                  setLedgerForm((f) => ({ ...f, gstin, state: state?.name || f.state }));
+                }}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">State / UT</label>
+              <select
+                value={ledgerForm.state}
+                onChange={(e) => setLedgerForm((f) => ({ ...f, state: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              >
+                <option value="">Select state / UT</option>
+                {GST_STATES.map((state) => <option key={state.code} value={state.name}>{state.code} - {state.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Pincode</label>
+              <input
+                value={ledgerForm.pincode}
+                onChange={(e) => setLedgerForm((f) => ({ ...f, pincode: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
+              <textarea
+                rows={2}
+                value={ledgerForm.address}
+                onChange={(e) => setLedgerForm((f) => ({ ...f, address: e.target.value }))}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#003087]"
               />
             </div>
             <div>
@@ -968,6 +1263,99 @@ export default function VoucherEntry({ voucherType }) {
           </button>
           <button type="submit" disabled={ledgerSaving} className="px-5 py-2.5 text-sm font-semibold text-white bg-[#003087] rounded-xl hover:bg-blue-800 disabled:opacity-60">
             {ledgerSaving ? 'Saving...' : 'Create Ledger'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+    <Modal
+      isOpen={Boolean(stockItemModal)}
+      onClose={() => setStockItemModal(null)}
+      title="Create Stock Item"
+      size="md"
+    >
+      <form onSubmit={saveFastStockItem} className="space-y-4">
+        {stockItemErr && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl">{stockItemErr}</div>}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Item Name *</label>
+          <input
+            required
+            value={stockItemForm.name}
+            onChange={(e) => setStockItemForm((f) => ({ ...f, name: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            autoFocus
+          />
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Unit *</label>
+            <select
+              required
+              value={stockItemForm.unit}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, unit: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            >
+              <option value="">Select unit</option>
+              {units.map((unit) => <option key={unit._id} value={unit._id}>{unit.name} ({unit.symbol})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Stock Group</label>
+            <select
+              value={stockItemForm.group}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, group: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            >
+              <option value="">Select group</option>
+              {stockGroups.map((group) => <option key={group._id} value={group._id}>{group.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">HSN Code</label>
+            <input
+              value={stockItemForm.hsnCode}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, hsnCode: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">GST Rate %</label>
+            <select
+              value={stockItemForm.gstRate}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, gstRate: +e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            >
+              {GST_RATES.map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Cost Price</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={stockItemForm.costPrice}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, costPrice: +e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Selling Price</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={stockItemForm.sellingPrice}
+              onChange={(e) => setStockItemForm((f) => ({ ...f, sellingPrice: +e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <button type="button" onClick={() => setStockItemModal(null)} className="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+            Cancel
+          </button>
+          <button type="submit" disabled={stockItemSaving} className="px-5 py-2.5 text-sm font-semibold text-white bg-[#003087] rounded-xl hover:bg-blue-800 disabled:opacity-60">
+            {stockItemSaving ? 'Saving...' : 'Create Stock Item'}
           </button>
         </div>
       </form>

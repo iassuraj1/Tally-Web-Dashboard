@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How to Add Users</title>
+    <style>
+      :root {
+        color: #0f172a;
+        background: #f7f8fb;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      main {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 42px 20px 56px;
+      }
+
+      .page {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+
+      header {
+        border-bottom: 1px solid #e2e8f0;
+        padding: 30px 34px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.2;
+      }
+
+      .subtitle {
+        margin: 10px 0 0;
+        color: #64748b;
+        font-size: 15px;
+        line-height: 1.7;
+      }
+
+      section {
+        padding: 26px 34px;
+        border-bottom: 1px solid #eef2f7;
+      }
+
+      section:last-child {
+        border-bottom: 0;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+
+      p,
+      li {
+        color: #334155;
+        font-size: 15px;
+        line-height: 1.75;
+      }
+
+      ol,
+      ul {
+        margin: 0;
+        padding-left: 22px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+
+      .card {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 18px;
+        background: #fbfdff;
+      }
+
+      .card strong {
+        display: block;
+        margin-bottom: 8px;
+        color: #0f172a;
+      }
+
+      .note {
+        border-left: 4px solid #2f8df7;
+        background: #eff6ff;
+        padding: 14px 16px;
+        border-radius: 8px;
+      }
+
+      @media (max-width: 640px) {
+        header,
+        section {
+          padding-left: 22px;
+          padding-right: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article class="page">
+        <header>
+          <h1>How to Add Users</h1>
+          <p class="subtitle">Use this guide from Settings &gt; Users &amp; Roles &gt; Users.</p>
+        </header>
+
+        <section>
+          <h2>Add a User</h2>
+          <ol>
+            <li>Open the Users tab.</li>
+            <li>Click Invite User to add a team member.</li>
+            <li>Enter the registered email address of the person you want to add.</li>
+            <li>Choose a role and review the permissions shown under the invite form.</li>
+            <li>Click Send Invite.</li>
+          </ol>
+        </section>
+
+        <section>
+          <h2>Choose the Right Role</h2>
+          <div class="grid">
+            <div class="card">
+              <strong>Admin</strong>
+              <p>Full access to company settings, users, vouchers and reports.</p>
+            </div>
+            <div class="card">
+              <strong>Accountant</strong>
+              <p>Voucher entry, reports and export access for accounting work.</p>
+            </div>
+            <div class="card">
+              <strong>Viewer</strong>
+              <p>Read-only access for reports and basic review work.</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Invite Accountant</h2>
+          <p>Use Invite Accountant when you want to add a bookkeeper, CA, auditor or finance team member. The invite form opens with the Accountant role selected, and you can still adjust permissions before sending.</p>
+        </section>
+
+        <section>
+          <h2>Invite User</h2>
+          <p>Use Invite User for any other staff member. Select the role that matches the user's responsibility before sending the invite.</p>
+        </section>
+
+        <section>
+          <h2>After Inviting</h2>
+          <div class="note">
+            <p>The invited person must already have an account with the same email address. If the email is not registered, ask them to sign up first, then send the invite again.</p>
+          </div>
+          <p>You can later change the user's role, disable access, or remove them from the same Users tab.</p>
+        </section>
+      </article>
+    </main>
+  </body>
+</html>

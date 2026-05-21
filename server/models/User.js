@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 const bcrypt   = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
@@ -7,6 +7,12 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true, minlength: 6 },
   role:     { type: String, enum: ['admin', 'accountant', 'viewer'], default: 'admin' },
   companies:[{ type: mongoose.Schema.Types.ObjectId, ref: 'Company' }],
+  emailVerified: { type: Boolean, default: false },
+  emailVerifiedAt: { type: Date },
+  emailVerificationToken: { type: String },
+  emailVerificationExpires: { type: Date },
+  emailVerificationSentAt: { type: Date },
+  lastLoginAt: { type: Date },
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

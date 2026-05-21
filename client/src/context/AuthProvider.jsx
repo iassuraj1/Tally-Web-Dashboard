@@ -12,6 +12,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const applySession = useCallback((data) => {
+    if (!data?.token) return data;
     localStorage.setItem('token', data.token);
     clearCompanySelection();
     setUser(data.user);
@@ -30,24 +31,34 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, [clearCompanySelection]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     return applySession(data);
-  };
+  }, [applySession]);
 
-  const register = async (name, email, password) => {
-    const { data } = await api.post('/auth/register', { name, email, password });
+  const register = useCallback(async (name, email, password, company) => {
+    const { data } = await api.post('/auth/register', { name, email, password, company });
     return applySession(data);
-  };
+  }, [applySession]);
 
-  const logout = () => {
+  const verifyEmail = useCallback(async (token, email = '') => {
+    const { data } = await api.post('/auth/verify-email', { token, email });
+    return data;
+  }, []);
+
+  const resendVerification = useCallback(async (email) => {
+    const { data } = await api.post('/auth/resend-verification', { email });
+    return data;
+  }, []);
+
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     clearCompanySelection();
     setUser(null);
-  };
+  }, [clearCompanySelection]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, verifyEmail, resendVerification, logout }}>
       {children}
     </AuthContext.Provider>
   );

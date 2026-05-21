@@ -55,7 +55,7 @@ export default function StockItems() {
   };
 
   const handlePrint = () => {
-    const headers = ['Item Name', 'Group', 'Unit', 'HSN', 'GST %', 'Selling Price', 'Opening Qty'];
+    const headers = ['Item Name', 'Group', 'Unit', 'HSN', 'GST %', 'Selling Price', 'Opening Qty', 'Current Qty'];
     const tableHTML = `<table>
       <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${items.map(r => `<tr>
@@ -66,18 +66,19 @@ export default function StockItems() {
         <td class="r">${r.gstRate}%</td>
         <td class="r">₹${Number(r.sellingPrice || 0).toLocaleString('en-IN')}</td>
         <td class="r">${r.openingQty}</td>
+        <td class="r">${r.currentQty ?? r.openingQty ?? 0}</td>
       </tr>`).join('')}</tbody>
     </table>`;
     printWindow('Stock Items', tableHTML);
   };
 
   const handleExport = () => {
-    const headers = ['Item Name', 'Group', 'Unit', 'HSN Code', 'GST %', 'Taxability', 'Valuation', 'Cost Price', 'Selling Price', 'MRP', 'Opening Qty', 'Opening Rate', 'Reorder Level'];
+    const headers = ['Item Name', 'Group', 'Unit', 'HSN Code', 'GST %', 'Taxability', 'Valuation', 'Cost Price', 'Selling Price', 'MRP', 'Opening Qty', 'Current Qty', 'Opening Rate', 'Reorder Level'];
     const rows = items.map(r => [
       r.name, r.group?.name || '', r.unit?.symbol || '',
       r.hsnCode || '', r.gstRate, r.taxability, r.valuationMethod,
       r.costPrice, r.sellingPrice, r.mrp,
-      r.openingQty, r.openingRate, r.reorderLevel,
+      r.openingQty, r.currentQty ?? r.openingQty ?? 0, r.openingRate, r.reorderLevel,
     ]);
     exportCSV('stock_items', headers, rows, 'Stock Items');
   };
@@ -91,6 +92,7 @@ export default function StockItems() {
     { key: 'valuationMethod', label: 'Valuation', render: v => v || 'Weighted Average' },
     { key: 'sellingPrice',label: 'Selling Price', render: v => `₹${Number(v||0).toLocaleString('en-IN')}` },
     { key: 'openingQty',  label: 'Opening Qty'  },
+    { key: 'currentQty',  label: 'Current Qty', render: v => Number(v ?? 0).toLocaleString('en-IN') },
   ];
 
   const numFields = [

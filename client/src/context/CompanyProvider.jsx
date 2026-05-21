@@ -51,6 +51,28 @@ export function CompanyProvider({ children }) {
     return () => window.removeEventListener('company:clear', clearCompany);
   }, [clearCompany]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const mode = company?.appearanceMode || 'system';
+    const applyTheme = () => {
+      const resolvedTheme = mode === 'system' && media ? (media.matches ? 'dark' : 'light') : mode;
+      root.dataset.appearanceMode = mode;
+      root.dataset.appTheme = resolvedTheme;
+      root.style.colorScheme = resolvedTheme;
+    };
+
+    applyTheme();
+    if (mode !== 'system' || !media) return undefined;
+
+    media.addEventListener?.('change', applyTheme);
+    media.addListener?.(applyTheme);
+    return () => {
+      media.removeEventListener?.('change', applyTheme);
+      media.removeListener?.(applyTheme);
+    };
+  }, [company?.appearanceMode]);
+
   return (
     <CompanyContext.Provider value={{ company, setCompany, financialYears, currentFinancialYear, refreshFinancialYears }}>
       {children}

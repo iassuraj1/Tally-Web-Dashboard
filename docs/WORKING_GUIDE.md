@@ -4,7 +4,7 @@ This project is a Tally-style accounting web app with:
 
 - React/Vite frontend in `client`
 - Express API in `server`
-- MongoDB database through Mongoose
+- PostgreSQL database through the server document model layer
 - JWT login for users
 - Company-scoped accounting data so each company has separate books
 - Multi-user company access with owner, admin, accountant, and viewer roles
@@ -21,13 +21,14 @@ Create or update `server/.env`:
 
 ```env
 PORT=5000
-MONGODB_URI=mongodb://127.0.0.1:27017/suraj-prime-tally
+DATABASE_URL=postgres://tally_app:change-this-password@127.0.0.1:5432/suraj_prime_tally
+POSTGRES_SSL=false
 JWT_SECRET=change-this-to-a-long-random-secret
 JWT_EXPIRES_IN=7d
 FRONTEND_URL=http://localhost:5173
 ```
 
-Start MongoDB, then run the app:
+Start PostgreSQL, then run the app:
 
 ```bash
 npm run dev
@@ -78,7 +79,7 @@ The API checks that the logged-in user owns the company or is an active member b
 
 ## 4. Database Structure
 
-Important collections:
+Important PostgreSQL document tables:
 
 - `users`: login accounts.
 - `companies`: company profile, owner, and member list.
@@ -87,22 +88,22 @@ Important collections:
 - `vouchers`: accounting and inventory vouchers per company.
 - `stockitems`, `stockgroups`, `units`, `godowns`: inventory masters.
 - `employees`, `payheads`, `payrollvouchers`: payroll.
-- `counters`: atomic sequence numbers for vouchers.
+- `counters`: transactional sequence numbers for vouchers.
 
 Every accounting collection stores a `company` field. This keeps each company's books separate, even when many users are using the app at the same time.
 
 ## 5. Concurrent Voucher Numbers
 
-Voucher numbers are generated through the `counters` collection with MongoDB `findOneAndUpdate` and `$inc`.
+Voucher numbers are generated through the `counters` table with a PostgreSQL transaction and row lock.
 
-That means if two users create a Sales voucher at the same time, MongoDB atomically gives them different numbers:
+That means if two users create a Sales voucher at the same time, PostgreSQL atomically gives them different numbers:
 
 ```text
 SI-0001
 SI-0002
 ```
 
-This avoids duplicate voucher numbers under normal multi-user usage.
+This avoids duplicate voucher numbers under normal multi-user usage, and the voucher insert is committed with the counter update.
 
 ## 6. Useful API Examples
 
@@ -161,7 +162,7 @@ Authorization: Bearer TOKEN
 If login works but app pages fail:
 
 - Check that `server/.env` has `JWT_SECRET`.
-- Check that MongoDB is running.
+- Check that PostgreSQL is running and `DATABASE_URL` is correct.
 - Check browser dev tools for failed `/api/...` requests.
 
 If a user cannot see a company:

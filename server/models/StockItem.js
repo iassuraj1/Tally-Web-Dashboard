@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const stockItemSchema = new mongoose.Schema({
   company:        { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
@@ -21,6 +21,12 @@ const stockItemSchema = new mongoose.Schema({
   openingQty:     { type: Number, default: 0 },
   openingRate:    { type: Number, default: 0 },
   openingGodown:  { type: mongoose.Schema.Types.ObjectId, ref: 'Godown' },
+  // Live stock balance. Opening stock is preserved; this is updated by stock-posting vouchers.
+  currentQty:      { type: Number, default: 0 },
+  currentRate:     { type: Number, default: 0 },
+  currentValue:    { type: Number, default: 0 },
+  lastStockMovementAt:{ type: Date },
+  stockSyncedAt:   { type: Date },
   // Settings
   maintainBatch:  { type: Boolean, default: false },
   trackExpiry:    { type: Boolean, default: false },

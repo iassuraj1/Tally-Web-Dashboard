@@ -8,9 +8,10 @@ const Row = ({ label, data = {} }) => (
     <td className="px-5 py-3 text-right font-mono">{fmt(data.taxable)}</td>
     <td className="px-5 py-3 text-right font-mono">{fmt(data.cgst)}</td>
     <td className="px-5 py-3 text-right font-mono">{fmt(data.sgst)}</td>
+    <td className="px-5 py-3 text-right font-mono">{fmt(data.utgst)}</td>
     <td className="px-5 py-3 text-right font-mono">{fmt(data.igst)}</td>
     <td className="px-5 py-3 text-right font-mono">{fmt(data.cess)}</td>
-    <td className="px-5 py-3 text-right font-mono font-semibold">{fmt((data.cgst || 0) + (data.sgst || 0) + (data.igst || 0) + (data.cess || 0))}</td>
+    <td className="px-5 py-3 text-right font-mono font-semibold">{fmt((data.cgst || 0) + (data.sgst || 0) + (data.utgst || 0) + (data.igst || 0) + (data.cess || 0))}</td>
   </tr>
 );
 
@@ -29,7 +30,7 @@ export default function GSTR3B() {
               <table className="w-full text-sm border border-gray-100 rounded-b-xl overflow-hidden">
                 <thead>
                   <tr className="bg-gray-50">
-                    {['Description', 'Taxable', 'CGST', 'SGST', 'IGST', 'Cess', 'Tax Total'].map((h, i) => (
+                    {['Description', 'Taxable', 'CGST', 'SGST', 'UTGST', 'IGST', 'Cess', 'Tax Total'].map((h, i) => (
                       <th key={h} className={`px-5 py-3 text-xs font-semibold text-gray-500 ${i === 0 ? 'text-left' : 'text-right'}`}>{h}</th>
                     ))}
                   </tr>

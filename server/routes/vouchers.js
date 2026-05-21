@@ -4,10 +4,20 @@ const Voucher = require('../models/Voucher');
 const Counter = require('../models/Counter');
 const { protect, companyAccess, requirePermission } = require('../middleware/auth');
 const { validateVoucher, validateVoucherEditWindow } = require('../services/voucherValidationService');
+const { applyVoucherStockEffect } = require('../services/stockMovementService');
 const { dispatchWebhooks } = require('../services/advancedService');
 const { logAudit } = require('../utils/audit');
+const { withTransaction } = require('../config/db');
 
 router.use(protect, companyAccess);
+
+const sendError = (res, err) => res.status(err.statusCode || 500).json({
+  success: false,
+  message: err.message,
+  code: err.code,
+  details: err.details,
+  errors: err.errors,
+});
 
 // Auto-generate voucher number
 const getNextVoucherNo = async (companyId, type) => {
@@ -71,33 +81,43 @@ router.post('/', requirePermission('create_vouchers'), async (req, res) => {
       });
     }
 
-    const voucherNo = req.body.voucherNo || await getNextVoucherNo(req.params.companyId, req.body.voucherType);
     const status = req.body.status || 'Submitted';
-    const voucher = await Voucher.create({
-      ...req.body,
-      company: req.params.companyId,
-      voucherNo,
-      status,
-      submittedAt: status === 'Submitted' ? new Date() : req.body.submittedAt,
-      submittedBy: status === 'Submitted' ? req.user._id : req.body.submittedBy,
-      approvedAt: status === 'Approved' ? new Date() : req.body.approvedAt,
-      approvedBy: status === 'Approved' ? req.user._id : req.body.approvedBy,
-    });
-    await voucher.populate(['party', 'entries.ledger', 'items.item']);
-    await logAudit({
-      req,
-      company: req.params.companyId,
-      action: 'voucher.created',
-      entityType: 'Voucher',
-      entityId: voucher._id,
-      after: voucher.toObject(),
+    const voucher = await withTransaction(async () => {
+      const voucherNo = req.body.voucherNo || await getNextVoucherNo(req.params.companyId, req.body.voucherType);
+      const nextVoucher = {
+        ...req.body,
+        company: req.params.companyId,
+        voucherNo,
+        status,
+        isCancelled: false,
+      };
+      await applyVoucherStockEffect(req.params.companyId, null, nextVoucher);
+      const created = await Voucher.create({
+        ...nextVoucher,
+        submittedAt: status === 'Submitted' ? new Date() : req.body.submittedAt,
+        submittedBy: status === 'Submitted' ? req.user._id : req.body.submittedBy,
+        approvedAt: status === 'Approved' ? new Date() : req.body.approvedAt,
+        approvedBy: status === 'Approved' ? req.user._id : req.body.approvedBy,
+      });
+      await created.populate(['party', 'entries.ledger', 'items.item']);
+      await logAudit({
+        req,
+        company: req.params.companyId,
+        action: 'voucher.created',
+        entityType: 'Voucher',
+        entityId: created._id,
+        after: created.toObject(),
+      });
+      return created;
+    }, {
+      isolationLevel: 'SERIALIZABLE',
     });
     dispatchWebhooks(req.params.companyId, 'voucher.created', {
       event: 'voucher.created',
       voucher: { id: voucher._id, voucherNo: voucher.voucherNo, voucherType: voucher.voucherType, total: voucher.total },
     }).catch(() => {});
     res.status(201).json({ success: true, data: voucher });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 });
 
 router.patch('/:id/approval', async (req, res) => {
@@ -154,21 +174,31 @@ router.patch('/:id/approval', async (req, res) => {
       update.$unset = { approvedAt: '', approvedBy: '' };
     }
 
-    const voucher = await Voucher.findOneAndUpdate(
-      { _id: req.params.id, company: req.params.companyId, isCancelled: false },
-      update,
-      { new: true, runValidators: true }
-    ).populate('party', 'name');
-    await logAudit({
-      req,
-      company: req.params.companyId,
-      action: `voucher.${action}`,
-      entityType: 'Voucher',
-      entityId: voucher._id,
-      before: existingVoucher,
-      after: voucher.toObject(),
-      metadata: { reason: req.body.reason },
+    const voucher = await withTransaction(async () => {
+      const before = await Voucher.findOne({ _id: req.params.id, company: req.params.companyId, isCancelled: false }).lean();
+      if (!before) return null;
+      const nextVoucher = { ...before, ...update };
+      await applyVoucherStockEffect(req.params.companyId, before, nextVoucher);
+      const updated = await Voucher.findOneAndUpdate(
+        { _id: req.params.id, company: req.params.companyId, isCancelled: false },
+        update,
+        { new: true, runValidators: true }
+      ).populate('party', 'name');
+      await logAudit({
+        req,
+        company: req.params.companyId,
+        action: `voucher.${action}`,
+        entityType: 'Voucher',
+        entityId: updated._id,
+        before,
+        after: updated.toObject(),
+        metadata: { reason: req.body.reason },
+      });
+      return updated;
+    }, {
+      isolationLevel: 'SERIALIZABLE',
     });
+    if (!voucher) return res.status(404).json({ success: false, message: 'Voucher not found' });
     if (['approve', 'reject', 'submit'].includes(action)) {
       dispatchWebhooks(req.params.companyId, `voucher.${action}`, {
         event: `voucher.${action}`,
@@ -176,13 +206,13 @@ router.patch('/:id/approval', async (req, res) => {
       }).catch(() => {});
     }
     res.json({ success: true, data: voucher });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
     const voucher = await Voucher.findOne({ _id: req.params.id, company: req.params.companyId })
-      .populate('party', 'name partyCode gstin gstTreatment address billingAddress shippingAddress phone email')
+      .populate('party', 'name partyCode gstin gstTreatment state address billingAddress shippingAddress phone email')
       .populate('entries.ledger', 'name group')
       .populate('entries.project', 'name code')
       .populate('items.item', 'name hsnCode gstRate unit')
@@ -223,26 +253,40 @@ router.put('/:id', requirePermission('edit_vouchers'), async (req, res) => {
       });
     }
 
-    const voucher = await Voucher.findOneAndUpdate(
-      { _id: req.params.id, company: req.params.companyId, isCancelled: false },
-      req.body, { new: true, runValidators: true }
-    );
-    if (!voucher) return res.status(404).json({ success: false, message: 'Voucher not found' });
-    await logAudit({
-      req,
-      company: req.params.companyId,
-      action: 'voucher.updated',
-      entityType: 'Voucher',
-      entityId: voucher._id,
-      before: existingVoucher,
-      after: voucher.toObject(),
+    const voucher = await withTransaction(async () => {
+      const before = await Voucher.findOne({
+        _id: req.params.id,
+        company: req.params.companyId,
+        isCancelled: false,
+      }).lean();
+      if (!before) return null;
+      const nextVoucher = { ...before, ...req.body, company: req.params.companyId };
+      await applyVoucherStockEffect(req.params.companyId, before, nextVoucher);
+      const updated = await Voucher.findOneAndUpdate(
+        { _id: req.params.id, company: req.params.companyId, isCancelled: false },
+        req.body, { new: true, runValidators: true }
+      );
+      if (!updated) return null;
+      await logAudit({
+        req,
+        company: req.params.companyId,
+        action: 'voucher.updated',
+        entityType: 'Voucher',
+        entityId: updated._id,
+        before,
+        after: updated.toObject(),
+      });
+      return updated;
+    }, {
+      isolationLevel: 'SERIALIZABLE',
     });
+    if (!voucher) return res.status(404).json({ success: false, message: 'Voucher not found' });
     dispatchWebhooks(req.params.companyId, 'voucher.updated', {
       event: 'voucher.updated',
       voucher: { id: voucher._id, voucherNo: voucher.voucherNo, voucherType: voucher.voucherType, total: voucher.total },
     }).catch(() => {});
     res.json({ success: true, data: voucher });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 });
 
 // Cancel voucher
@@ -264,28 +308,42 @@ router.patch('/:id/cancel', requirePermission('cancel_vouchers'), async (req, re
       });
     }
 
-    const voucher = await Voucher.findOneAndUpdate(
-      { _id: req.params.id, company: req.params.companyId },
-      { isCancelled: true, cancelReason: req.body.reason },
-      { new: true }
-    );
-    if (!voucher) return res.status(404).json({ success: false, message: 'Voucher not found' });
-    await logAudit({
-      req,
-      company: req.params.companyId,
-      action: 'voucher.cancelled',
-      entityType: 'Voucher',
-      entityId: voucher._id,
-      before: existingVoucher,
-      after: voucher.toObject(),
-      metadata: { reason: req.body.reason },
+    const voucher = await withTransaction(async () => {
+      const before = await Voucher.findOne({
+        _id: req.params.id,
+        company: req.params.companyId,
+        isCancelled: false,
+      }).lean();
+      if (!before) return null;
+      const nextVoucher = { ...before, isCancelled: true, cancelReason: req.body.reason };
+      await applyVoucherStockEffect(req.params.companyId, before, nextVoucher);
+      const cancelled = await Voucher.findOneAndUpdate(
+        { _id: req.params.id, company: req.params.companyId },
+        { isCancelled: true, cancelReason: req.body.reason },
+        { new: true }
+      );
+      if (!cancelled) return null;
+      await logAudit({
+        req,
+        company: req.params.companyId,
+        action: 'voucher.cancelled',
+        entityType: 'Voucher',
+        entityId: cancelled._id,
+        before,
+        after: cancelled.toObject(),
+        metadata: { reason: req.body.reason },
+      });
+      return cancelled;
+    }, {
+      isolationLevel: 'SERIALIZABLE',
     });
+    if (!voucher) return res.status(404).json({ success: false, message: 'Voucher not found' });
     dispatchWebhooks(req.params.companyId, 'voucher.cancelled', {
       event: 'voucher.cancelled',
       voucher: { id: voucher._id, voucherNo: voucher.voucherNo, voucherType: voucher.voucherType, total: voucher.total },
     }).catch(() => {});
     res.json({ success: true, data: voucher });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { sendError(res, err); }
 });
 
 module.exports = router;

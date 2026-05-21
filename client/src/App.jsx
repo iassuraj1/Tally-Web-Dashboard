@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 // Marketing site
@@ -12,6 +13,7 @@ import BlogPage     from './pages/BlogPage';
 // Auth
 import Login    from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import VerifyEmail from './pages/auth/VerifyEmail';
 
 // App shell
 import AppLayout from './components/app/AppLayout';
@@ -201,9 +203,49 @@ function PlaceholderPage({ title }) {
   );
 }
 
+function NumberInputZeroGuard() {
+  useEffect(() => {
+    const isNumberInput = (target) => target instanceof HTMLInputElement && target.type === 'number';
+    const isZeroValue = (value) => /^-?0(?:\.0+)?$/.test(String(value || '').trim());
+
+    const selectDefaultZero = (input) => {
+      if (input.disabled || input.readOnly || !isZeroValue(input.value)) return;
+      input.dataset.selectDefaultZero = 'true';
+      window.requestAnimationFrame(() => {
+        if (document.activeElement !== input || !isZeroValue(input.value)) return;
+        try {
+          input.select();
+        } catch {
+          input.value = '';
+        }
+      });
+    };
+
+    const onFocusIn = (event) => {
+      if (isNumberInput(event.target)) selectDefaultZero(event.target);
+    };
+
+    const onMouseUp = (event) => {
+      if (!isNumberInput(event.target) || event.target.dataset.selectDefaultZero !== 'true') return;
+      event.preventDefault();
+      delete event.target.dataset.selectDefaultZero;
+    };
+
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('mouseup', onMouseUp, true);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('mouseup', onMouseUp, true);
+    };
+  }, []);
+
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <NumberInputZeroGuard />
       <Routes>
         {/* ─── Marketing site ─── */}
         <Route path="/" element={<MarketingLayout><Home /></MarketingLayout>} />
@@ -221,6 +263,7 @@ export default function App() {
         {/* ─── Auth (no nav) ─── */}
         <Route path="/app/login"    element={<Login />} />
         <Route path="/app/register" element={<Register />} />
+        <Route path="/app/verify-email" element={<VerifyEmail />} />
 
         {/* ─── Protected app ─── */}
         <Route path="/app" element={<AppLayout />}>

@@ -41,7 +41,7 @@ const config = {
     title: 'Reverse Charge Report',
     endpoint: 'gst/reverse-charge',
     empty: 'No reverse-charge vouchers found',
-    columns: ['Date', 'Voucher', 'Type', 'Party', 'GSTIN', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total'],
+    columns: ['Date', 'Voucher', 'Type', 'Party', 'GSTIN', 'Taxable', 'CGST', 'SGST', 'UTGST', 'IGST', 'Total'],
     renderRow: (row, fmt) => [
       fmtDate(row.date),
       row.voucherNo,
@@ -51,6 +51,7 @@ const config = {
       fmt(row.taxable),
       fmt(row.cgst),
       fmt(row.sgst),
+      fmt(row.utgst),
       fmt(row.igst),
       fmt(row.total),
     ],

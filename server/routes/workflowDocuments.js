@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 const router = express.Router({ mergeParams: true });
 const Counter = require('../models/Counter');
 const Ledger = require('../models/Ledger');
@@ -7,7 +7,10 @@ const Voucher = require('../models/Voucher');
 const WorkflowDocument = require('../models/WorkflowDocument');
 const { protect, companyAccess } = require('../middleware/auth');
 const { validateVoucher } = require('../services/voucherValidationService');
+const { applyVoucherStockEffect } = require('../services/stockMovementService');
 const { logAudit } = require('../utils/audit');
+const { withTransaction } = require('../config/db');
+const { getGstTaxType } = require('../utils/gstStates');
 
 router.use(protect, companyAccess);
 
@@ -53,37 +56,45 @@ const recalc = (body) => {
   let totalDiscount = 0;
   let totalCGST = 0;
   let totalSGST = 0;
+  let totalUTGST = 0;
   let totalIGST = 0;
+  const taxType = getGstTaxType(body.companyState || '', body.placeOfSupply || body.companyState || '');
 
   const nextItems = items.map((rawLine) => {
     const line = normalizeOptionalRefs(rawLine);
     const qty = Number(line.qty || 0);
     const rate = Number(line.rate || 0);
     const discount = Number(line.discount || 0);
-    const amount = Number(line.amount ?? (qty * rate - discount));
+    const amount = qty * rate - discount;
     const gstRate = Number(line.gstRate || 0) / 100;
-    const igst = body.isIGST ? amount * gstRate : 0;
-    const cgst = body.isIGST ? 0 : amount * gstRate / 2;
-    const sgst = body.isIGST ? 0 : amount * gstRate / 2;
+    const gst = amount * gstRate;
+    const igst = taxType === 'IGST' ? gst : 0;
+    const cgst = taxType === 'IGST' ? 0 : gst / 2;
+    const sgst = taxType === 'SGST' ? gst / 2 : 0;
+    const utgst = taxType === 'UTGST' ? gst / 2 : 0;
     subtotal += amount;
     totalDiscount += discount;
     totalCGST += cgst;
     totalSGST += sgst;
+    totalUTGST += utgst;
     totalIGST += igst;
-    return { ...line, amount, cgst, sgst, igst };
+    return { ...line, amount, cgst, sgst, utgst, igst };
   });
 
   const roundOff = Number(body.roundOff || 0);
+  const { companyState, ...cleanBody } = body;
   return {
-    ...body,
+    ...cleanBody,
     party: isBlank(body.party) ? undefined : body.party,
     items: nextItems,
     subtotal,
     totalDiscount,
     totalCGST,
     totalSGST,
+    totalUTGST,
     totalIGST,
-    total: subtotal + totalCGST + totalSGST + totalIGST + roundOff,
+    isIGST: taxType === 'IGST',
+    total: subtotal + totalCGST + totalSGST + totalUTGST + totalIGST + roundOff,
   };
 };
 
@@ -135,7 +146,7 @@ router.get('/', async (req, res) => {
     if (req.query.status) filter.status = req.query.status;
     if (req.query.party) filter.party = req.query.party;
     const docs = await WorkflowDocument.find(filter)
-      .populate('party', 'name partyCode gstin phone email')
+      .populate('party', 'name partyCode gstin state phone email')
       .populate('convertedToVoucher', 'voucherType voucherNo total')
       .sort({ date: -1, createdAt: -1 })
       .limit(Math.min(parseInt(req.query.limit, 10) || 300, 1000));
@@ -145,15 +156,18 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const body = recalc(req.body);
-    const documentNo = body.documentNo || await counterNo(
-      req.params.companyId,
-      `document:${body.documentType}`,
-      prefixes[body.documentType] || 'DOC'
-    );
-    const doc = await WorkflowDocument.create({ ...body, company: req.params.companyId, documentNo });
-    await doc.populate('party', 'name partyCode gstin phone email');
-    await logAudit({ req, company: req.params.companyId, action: 'workflow_document.created', entityType: 'WorkflowDocument', entityId: doc._id, after: doc.toObject() });
+    const body = recalc({ ...req.body, companyState: req.company?.state || '' });
+    const doc = await withTransaction(async () => {
+      const documentNo = body.documentNo || await counterNo(
+        req.params.companyId,
+        `document:${body.documentType}`,
+        prefixes[body.documentType] || 'DOC'
+      );
+      const created = await WorkflowDocument.create({ ...body, company: req.params.companyId, documentNo });
+      await created.populate('party', 'name partyCode gstin state phone email');
+      await logAudit({ req, company: req.params.companyId, action: 'workflow_document.created', entityType: 'WorkflowDocument', entityId: created._id, after: created.toObject() });
+      return created;
+    }, { isolationLevel: 'SERIALIZABLE' });
     res.status(201).json({ success: true, data: doc });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -161,7 +175,7 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const doc = await WorkflowDocument.findOne({ _id: req.params.id, company: req.params.companyId })
-      .populate('party', 'name partyCode gstin gstTreatment billingAddress shippingAddress address phone email')
+      .populate('party', 'name partyCode gstin gstTreatment state billingAddress shippingAddress address phone email')
       .populate('items.item', 'name hsnCode gstRate unit')
       .populate('items.unit', 'symbol')
       .populate('items.godown', 'name')
@@ -177,9 +191,9 @@ router.put('/:id', async (req, res) => {
     if (!before) return res.status(404).json({ success: false, message: 'Document not found' });
     const doc = await WorkflowDocument.findOneAndUpdate(
       { _id: req.params.id, company: req.params.companyId },
-      recalc(req.body),
+      recalc({ ...req.body, companyState: req.company?.state || '' }),
       { new: true, runValidators: true }
-    ).populate('party', 'name partyCode gstin phone email');
+    ).populate('party', 'name partyCode gstin state phone email');
     await logAudit({ req, company: req.params.companyId, action: 'workflow_document.updated', entityType: 'WorkflowDocument', entityId: doc._id, before, after: doc.toObject() });
     res.json({ success: true, data: doc });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -237,31 +251,32 @@ router.post('/:id/convert', async (req, res) => {
     }[target];
 
     if (targetDocumentType) {
-      const next = await WorkflowDocument.create({
-        ...doc.toObject(),
-        _id: undefined,
-        documentType: targetDocumentType,
-        documentNo: await counterNo(req.params.companyId, `document:${targetDocumentType}`, prefixes[targetDocumentType]),
-        status: 'draft',
-        convertedFrom: doc._id,
-        convertedToVoucher: undefined,
-        convertedToDocument: undefined,
-        createdAt: undefined,
-        updatedAt: undefined,
-      });
-      doc.convertedToDocument = next._id;
-      doc.status = targetDocumentType === 'SalesOrder' ? 'accepted' : 'closed';
-      await doc.save();
+      const next = await withTransaction(async () => {
+        const created = await WorkflowDocument.create({
+          ...doc.toObject(),
+          _id: undefined,
+          documentType: targetDocumentType,
+          documentNo: await counterNo(req.params.companyId, `document:${targetDocumentType}`, prefixes[targetDocumentType]),
+          status: 'draft',
+          convertedFrom: doc._id,
+          convertedToVoucher: undefined,
+          convertedToDocument: undefined,
+          createdAt: undefined,
+          updatedAt: undefined,
+        });
+        doc.convertedToDocument = created._id;
+        doc.status = targetDocumentType === 'SalesOrder' ? 'accepted' : 'closed';
+        await doc.save();
+        return created;
+      }, { isolationLevel: 'SERIALIZABLE' });
       return res.status(201).json({ success: true, data: next, kind: 'document' });
     }
 
     const voucherType = voucherTypeFor[target];
     if (!voucherType) return res.status(400).json({ success: false, message: 'Unsupported conversion target' });
-    const voucherNo = await counterNo(req.params.companyId, `voucher:${voucherType}`, { Sales: 'SI', Purchase: 'PI', DeliveryNote: 'DN', ReceiptNote: 'RN', Receipt: 'REC', Payment: 'PAY' }[voucherType] || 'VCH');
     const total = Number(req.body.amount || doc.total || 0);
     const voucherBody = {
       voucherType,
-      voucherNo,
       date: req.body.date || new Date(),
       reference: doc.documentNo,
       narration: req.body.narration || `Converted from ${doc.documentNo}`,
@@ -276,6 +291,7 @@ router.post('/:id/convert', async (req, res) => {
       totalDiscount: doc.totalDiscount,
       totalCGST: doc.totalCGST,
       totalSGST: doc.totalSGST,
+      totalUTGST: doc.totalUTGST,
       totalIGST: doc.totalIGST,
       roundOff: doc.roundOff,
       total,
@@ -283,11 +299,17 @@ router.post('/:id/convert', async (req, res) => {
     };
     const errors = await validateVoucher(voucherBody, req.params.companyId);
     if (errors.length) return res.status(400).json({ success: false, message: errors.join(' '), errors });
-    const voucher = await Voucher.create({ ...voucherBody, company: req.params.companyId });
-    doc.convertedToVoucher = voucher._id;
-    doc.status = voucherType === 'Purchase' ? 'billed' : voucherType === 'Sales' ? 'invoiced' : 'closed';
-    await doc.save();
-    await logAudit({ req, company: req.params.companyId, action: 'workflow_document.converted', entityType: 'WorkflowDocument', entityId: doc._id, after: { target, voucher: voucher._id } });
+    const voucher = await withTransaction(async () => {
+      const voucherNo = await counterNo(req.params.companyId, `voucher:${voucherType}`, { Sales: 'SI', Purchase: 'PI', DeliveryNote: 'DN', ReceiptNote: 'RN', Receipt: 'REC', Payment: 'PAY' }[voucherType] || 'VCH');
+      const nextVoucher = { ...voucherBody, voucherNo, company: req.params.companyId, isCancelled: false };
+      await applyVoucherStockEffect(req.params.companyId, null, nextVoucher);
+      const created = await Voucher.create(nextVoucher);
+      doc.convertedToVoucher = created._id;
+      doc.status = voucherType === 'Purchase' ? 'billed' : voucherType === 'Sales' ? 'invoiced' : 'closed';
+      await doc.save();
+      await logAudit({ req, company: req.params.companyId, action: 'workflow_document.converted', entityType: 'WorkflowDocument', entityId: doc._id, after: { target, voucher: created._id } });
+      return created;
+    }, { isolationLevel: 'SERIALIZABLE' });
     res.status(201).json({ success: true, data: voucher, kind: 'voucher' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const documentLineSchema = new mongoose.Schema({
   item:        { type: mongoose.Schema.Types.ObjectId, ref: 'StockItem' },
@@ -12,6 +12,7 @@ const documentLineSchema = new mongoose.Schema({
   amount:      { type: Number, default: 0 },
   cgst:        { type: Number, default: 0 },
   sgst:        { type: Number, default: 0 },
+  utgst:       { type: Number, default: 0 },
   igst:        { type: Number, default: 0 },
   godown:      { type: mongoose.Schema.Types.ObjectId, ref: 'Godown' },
 }, { _id: false });
@@ -43,6 +44,7 @@ const workflowDocumentSchema = new mongoose.Schema({
   totalDiscount: { type: Number, default: 0 },
   totalCGST:     { type: Number, default: 0 },
   totalSGST:     { type: Number, default: 0 },
+  totalUTGST:    { type: Number, default: 0 },
   totalIGST:     { type: Number, default: 0 },
   roundOff:      { type: Number, default: 0 },
   total:         { type: Number, default: 0 },

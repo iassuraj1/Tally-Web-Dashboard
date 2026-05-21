@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },

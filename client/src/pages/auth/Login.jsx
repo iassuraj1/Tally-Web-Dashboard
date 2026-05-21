@@ -17,21 +17,54 @@ export default function Login() {
   const [form, setForm]     = useState({ email: '', password: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError]   = useState('');
+  const [notice, setNotice] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('verified') === '1') return 'Email verified successfully. You can now sign in.';
+    if (params.get('verify') === '1') return 'Account created. Please check your email and verify before signing in.';
+    return '';
+  });
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [devVerificationUrl, setDevVerificationUrl] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
   const [loading, setLoading] = useState(false);
-  const { login }           = useAuth();
+  const { login, resendVerification } = useAuth();
   const navigate            = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setNotice('');
+    setUnverifiedEmail('');
+    setDevVerificationUrl('');
     setLoading(true);
     try {
       await login(form.email, form.password);
       navigate('/app');
     } catch (err) {
+      if (err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+        setUnverifiedEmail(err.response.data.email || form.email);
+      }
       setError(getApiError(err, 'Login failed. Please try again.'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resendEmail = async () => {
+    const email = unverifiedEmail || form.email;
+    if (!email) return;
+    setResendLoading(true);
+    setNotice('');
+    setError('');
+    setDevVerificationUrl('');
+    try {
+      const data = await resendVerification(email);
+      setNotice(data.message || 'Verification email sent. Please check your inbox.');
+      if (data.emailDelivery?.devVerificationUrl) setDevVerificationUrl(data.emailDelivery.devVerificationUrl);
+    } catch (err) {
+      setError(getApiError(err, 'Could not resend verification email.'));
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -92,6 +125,20 @@ export default function Login() {
             </div>
           )}
 
+          {notice && (
+            <div className="flex items-start gap-2 bg-green-50 text-green-700 px-4 py-3 rounded-xl mb-5 text-sm">
+              <FiCheckCircle className="mt-0.5 shrink-0" size={16} />
+              <div>
+                <div>{notice}</div>
+                {devVerificationUrl && (
+                  <a href={devVerificationUrl} className="mt-2 inline-block font-semibold text-[#003087] hover:underline">
+                    Open development verification link
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
@@ -129,6 +176,21 @@ export default function Login() {
               {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" /> : 'Sign In'}
             </button>
           </form>
+
+          {unverifiedEmail && (
+            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-gray-700">
+              <div className="font-semibold text-gray-900">Need a new verification email?</div>
+              <div className="mt-1 text-gray-600">We will send it to {unverifiedEmail}.</div>
+              <button
+                type="button"
+                onClick={resendEmail}
+                disabled={resendLoading}
+                className="mt-3 rounded-lg bg-[#003087] px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-60"
+              >
+                {resendLoading ? 'Sending...' : 'Resend Verification Email'}
+              </button>
+            </div>
+          )}
 
           <p className="text-center text-sm text-gray-500 mt-6">
             Don't have an account?{' '}

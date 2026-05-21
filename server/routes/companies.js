@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const router  = express.Router();
 const Company = require('../models/Company');
 const User    = require('../models/User');
@@ -8,42 +9,106 @@ const { protect } = require('../middleware/auth');
 const { seedDefaultMasters } = require('../utils/seedMasters');
 const { logAudit } = require('../utils/audit');
 const { PERMISSIONS, ROLE_PERMISSIONS, can, permissionsForRole, uniquePermissions } = require('../services/permissionService');
+const { withTransaction } = require('../config/db');
 
 router.use(protect);
 
+const normalizeOrganizationProfileId = (value) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .replace(/\s+/g, '-')
+  .replace(/[^A-Z0-9-_]/g, '')
+  .slice(0, 32);
+
+const generateUniqueOrganizationProfileId = async () => {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = `ORG-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const exists = await Company.exists({ organizationProfileId: candidate });
+    if (!exists) return candidate;
+  }
+  return `ORG-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+};
+
+const ensureOrganizationProfileId = async (company) => {
+  if (!company || company.organizationProfileId) return company;
+  const organizationProfileId = await generateUniqueOrganizationProfileId();
+  await Company.updateOne({ _id: company._id }, { organizationProfileId });
+  company.organizationProfileId = organizationProfileId;
+  return company;
+};
+
+const prepareOrganizationProfileIdPatch = async (body, companyId) => {
+  if (!Object.prototype.hasOwnProperty.call(body, 'organizationProfileId')) return { patch: body };
+
+  const organizationProfileId = normalizeOrganizationProfileId(body.organizationProfileId);
+  if (!organizationProfileId) {
+    return { error: { status: 400, message: 'Organization Profile ID is required' } };
+  }
+
+  const existing = await Company.exists({
+    _id: { $ne: companyId },
+    organizationProfileId,
+  });
+  if (existing) {
+    return { error: { status: 409, message: 'Organization Profile ID already exists' } };
+  }
+
+  return { patch: { ...body, organizationProfileId } };
+};
+
 router.get('/', async (req, res) => {
   try {
-    const companies = await Company.find({
+    let companies = await Company.find({
       isActive: true,
       $or: [
         { owner: req.user._id },
         { members: { $elemMatch: { user: req.user._id, status: 'active' } } },
       ],
     }).populate('owner', 'name email').populate('members.user', 'name email');
+    companies = await Promise.all(companies.map(ensureOrganizationProfileId));
     res.json({ success: true, data: companies });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 router.post('/', async (req, res) => {
   try {
-    const company = await Company.create({
-      ...req.body,
-      owner: req.user._id,
-      members: [{ user: req.user._id, role: 'admin', permissions: ROLE_PERMISSIONS.admin, status: 'active' }],
-    });
-    await User.updateOne({ _id: req.user._id }, { $addToSet: { companies: company._id } });
-    // Seed default Tally groups + ledgers for this company
-    await seedDefaultMasters(company._id);
-    await logAudit({
-      req,
-      company: company._id,
-      action: 'company.created',
-      entityType: 'Company',
-      entityId: company._id,
-      after: company.toObject(),
-    });
+    const hasProfileId = Object.prototype.hasOwnProperty.call(req.body, 'organizationProfileId');
+    const requestedProfileId = normalizeOrganizationProfileId(req.body.organizationProfileId);
+    if (hasProfileId && !requestedProfileId) {
+      return res.status(400).json({ success: false, message: 'Organization Profile ID is required' });
+    }
+    const organizationProfileId = requestedProfileId || await generateUniqueOrganizationProfileId();
+    if (requestedProfileId && await Company.exists({ organizationProfileId })) {
+      return res.status(409).json({ success: false, message: 'Organization Profile ID already exists' });
+    }
+
+    const company = await withTransaction(async () => {
+      const created = await Company.create({
+        ...req.body,
+        organizationProfileId,
+        owner: req.user._id,
+        members: [{ user: req.user._id, role: 'admin', permissions: ROLE_PERMISSIONS.admin, status: 'active' }],
+      });
+      await User.updateOne({ _id: req.user._id }, { $addToSet: { companies: created._id } });
+      // Seed default Tally groups + ledgers for this company
+      await seedDefaultMasters(created._id);
+      await logAudit({
+        req,
+        company: created._id,
+        action: 'company.created',
+        entityType: 'Company',
+        entityId: created._id,
+        after: created.toObject(),
+      });
+      return created;
+    }, { isolationLevel: 'SERIALIZABLE' });
     res.status(201).json({ success: true, data: company });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.organizationProfileId) {
+      return res.status(409).json({ success: false, message: 'Organization Profile ID already exists' });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 router.get('/:id/financial-years', async (req, res) => {
@@ -179,6 +244,7 @@ router.get('/:id', async (req, res) => {
       ],
     }).populate('owner', 'name email').populate('members.user', 'name email');
     if (!company) return res.status(404).json({ success: false, message: 'Company not found' });
+    await ensureOrganizationProfileId(company);
     res.json({ success: true, data: company });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -201,11 +267,13 @@ const findAccessibleCompany = (companyId, userId) => Company.findOne({
 });
 
 const setActiveFinancialYear = async (companyId, financialYearId) => {
-  await FinancialYear.updateMany(
-    { company: companyId, _id: { $ne: financialYearId } },
-    { isActive: false }
-  );
-  await Company.updateOne({ _id: companyId }, { activeFinancialYear: financialYearId });
+  await withTransaction(async () => {
+    await FinancialYear.updateMany(
+      { company: companyId, _id: { $ne: financialYearId } },
+      { isActive: false }
+    );
+    await Company.updateOne({ _id: companyId }, { activeFinancialYear: financialYearId });
+  }, { isolationLevel: 'SERIALIZABLE' });
 };
 
 router.put('/:id', async (req, res) => {
@@ -222,10 +290,14 @@ router.put('/:id', async (req, res) => {
     if (!canManage(current, req.user._id)) {
       return res.status(403).json({ success: false, message: 'Permission required: manage_company_settings' });
     }
+    await ensureOrganizationProfileId(current);
+
+    const { patch, error } = await prepareOrganizationProfileIdPatch(req.body, current._id);
+    if (error) return res.status(error.status).json({ success: false, message: error.message });
 
     const company = await Company.findOneAndUpdate(
       { _id: req.params.id, isActive: true },
-      req.body,
+      patch,
       { new: true, runValidators: true }
     );
     if (!company) return res.status(404).json({ success: false, message: 'Company not found' });
@@ -239,7 +311,12 @@ router.put('/:id', async (req, res) => {
       after: company.toObject(),
     });
     res.json({ success: true, data: company });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) {
+    if (err.code === 11000 && err.keyPattern?.organizationProfileId) {
+      return res.status(409).json({ success: false, message: 'Organization Profile ID already exists' });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 router.delete('/:id', async (req, res) => {

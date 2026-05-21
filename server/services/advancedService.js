@@ -11,6 +11,8 @@ const Voucher = require('../models/Voucher');
 const WebhookDelivery = require('../models/WebhookDelivery');
 const WebhookEndpoint = require('../models/WebhookEndpoint');
 const { validateVoucher } = require('./voucherValidationService');
+const { applyVoucherStockEffect } = require('./stockMovementService');
+const { withTransaction } = require('../config/db');
 
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const dateOnly = (value) => (value ? new Date(value).toISOString().slice(0, 10) : '');
@@ -180,7 +182,6 @@ const generateRecurringVoucher = async ({ companyId, recurringId, userId }) => {
     ...(recurring.template || {}),
     company: companyId,
     voucherType,
-    voucherNo: await getNextVoucherNo(companyId, voucherType),
     date: recurring.nextRunDate,
     status: recurring.autoSubmit ? 'Submitted' : 'Draft',
     recurringTemplate: recurring._id,
@@ -198,11 +199,20 @@ const generateRecurringVoucher = async ({ companyId, recurringId, userId }) => {
     throw err;
   }
 
-  const voucher = await Voucher.create(body);
-  recurring.lastGeneratedAt = new Date();
-  recurring.lastGeneratedVoucher = voucher._id;
-  recurring.nextRunDate = addFrequency(recurring.nextRunDate, recurring.frequency);
-  await recurring.save();
+  const voucher = await withTransaction(async () => {
+    const nextVoucher = {
+      ...body,
+      voucherNo: await getNextVoucherNo(companyId, voucherType),
+      isCancelled: false,
+    };
+    await applyVoucherStockEffect(companyId, null, nextVoucher);
+    const created = await Voucher.create(nextVoucher);
+    recurring.lastGeneratedAt = new Date();
+    recurring.lastGeneratedVoucher = created._id;
+    recurring.nextRunDate = addFrequency(recurring.nextRunDate, recurring.frequency);
+    await recurring.save();
+    return created;
+  }, { isolationLevel: 'SERIALIZABLE' });
   return voucher.populate('party', 'name email phone');
 };
 
@@ -412,7 +422,7 @@ const answerBusinessQuestion = async (companyId, question = '') => {
       isCancelled: false,
       status: 'Approved',
       date: { $gte: monthStart, $lte: monthEnd },
-    }).select('voucherType total totalCGST totalSGST totalIGST'),
+    }).select('voucherType total totalCGST totalSGST totalUTGST totalIGST'),
     Voucher.countDocuments({
       company: companyId,
       isCancelled: false,
@@ -424,7 +434,7 @@ const answerBusinessQuestion = async (companyId, question = '') => {
 
   const sales = round2(monthlyVouchers.filter((voucher) => voucher.voucherType === 'Sales').reduce((sum, voucher) => sum + Number(voucher.total || 0), 0));
   const purchases = round2(monthlyVouchers.filter((voucher) => voucher.voucherType === 'Purchase').reduce((sum, voucher) => sum + Number(voucher.total || 0), 0));
-  const gst = round2(monthlyVouchers.reduce((sum, voucher) => sum + Number(voucher.totalCGST || 0) + Number(voucher.totalSGST || 0) + Number(voucher.totalIGST || 0), 0));
+  const gst = round2(monthlyVouchers.reduce((sum, voucher) => sum + Number(voucher.totalCGST || 0) + Number(voucher.totalSGST || 0) + Number(voucher.totalUTGST || 0) + Number(voucher.totalIGST || 0), 0));
   const profit = round2(sales - purchases);
 
   let answer = `This month sales are ${sales.toLocaleString('en-IN')} and purchases are ${purchases.toLocaleString('en-IN')}. Estimated trading profit before expenses is ${profit.toLocaleString('en-IN')}.`;

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 const Company = require('../models/Company');
 const FinancialYear = require('../models/FinancialYear');
 const Ledger = require('../models/Ledger');
@@ -148,7 +148,7 @@ const validateVoucher = async (payload, companyId) => {
   const entries = Array.isArray(payload.entries) ? payload.entries.filter(hasAccountingData) : [];
   const items = Array.isArray(payload.items) ? payload.items.filter((item) => item?.item) : [];
 
-  if (JOURNAL_STYLE_VOUCHERS.has(voucherType) && entries.length < 2) {
+  if (JOURNAL_STYLE_VOUCHERS.has(voucherType) && items.length === 0 && entries.length < 2) {
     errors.push('At least two accounting entries are required for this voucher type.');
   }
 
@@ -209,6 +209,19 @@ const validateVoucher = async (payload, companyId) => {
   }
 
   const stockItemIds = unique(items.map((item) => item.item));
+  items.forEach((item, index) => {
+    const lineNo = index + 1;
+    if (!Number.isFinite(Number(item.qty)) || Number(item.qty) <= 0) {
+      errors.push(`Stock line ${lineNo}: quantity must be greater than zero.`);
+    }
+    if (!Number.isFinite(Number(item.rate)) || Number(item.rate) < 0) {
+      errors.push(`Stock line ${lineNo}: rate cannot be negative.`);
+    }
+    if (!Number.isFinite(Number(item.amount)) || Number(item.amount) < 0) {
+      errors.push(`Stock line ${lineNo}: amount cannot be negative.`);
+    }
+  });
+
   stockItemIds.forEach((id, index) => {
     if (!isObjectId(id)) {
       errors.push(`Stock line ${index + 1}: stock item ID is invalid.`);

@@ -18,11 +18,11 @@ const nav = [
       { label: 'Ledgers',         href: '/app/masters/ledgers' },
       { label: 'Customers',       href: '/app/masters/customers' },
       { label: 'Vendors',         href: '/app/masters/vendors' },
+      { label: 'Cost Centres',    href: '/app/masters/cost-centres' },
       { label: 'Stock Groups',    href: '/app/masters/stock-groups' },
-      { label: 'Stock Items',     href: '/app/masters/stock-items' },
       { label: 'Units',           href: '/app/masters/units' },
       { label: 'Godowns',         href: '/app/masters/godowns' },
-      { label: 'Cost Centres',    href: '/app/masters/cost-centres' },
+      { label: 'Stock Items',     href: '/app/masters/stock-items' },
     ],
   },
   {

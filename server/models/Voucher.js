@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 // A single line in an accounting voucher (debit/credit entry)
 const entrySchema = new mongoose.Schema({
@@ -26,6 +26,7 @@ const stockLineSchema = new mongoose.Schema({
   gstRate:    { type: Number, default: 0 },
   cgst:       { type: Number, default: 0 },
   sgst:       { type: Number, default: 0 },
+  utgst:      { type: Number, default: 0 },
   igst:       { type: Number, default: 0 },
   cess:       { type: Number, default: 0 },
   batchNo:    { type: String },
@@ -64,6 +65,7 @@ const voucherSchema = new mongoose.Schema({
   totalDiscount:{ type: Number, default: 0 },
   totalCGST:    { type: Number, default: 0 },
   totalSGST:    { type: Number, default: 0 },
+  totalUTGST:   { type: Number, default: 0 },
   totalIGST:    { type: Number, default: 0 },
   totalCess:    { type: Number, default: 0 },
   tdsAmount:    { type: Number, default: 0 },

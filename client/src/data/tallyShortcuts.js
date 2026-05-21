@@ -7,6 +7,7 @@ export const TALLY_SHORTCUT_SOURCE = {
 export const APP_TALLY_SHORTCUTS = [
   { combo: 'F1', action: 'Open shortcut guide', href: '/app/tools/tally-shortcuts', allowInEditable: true },
   { combo: 'Ctrl+F1', action: 'Open shortcut guide', href: '/app/tools/tally-shortcuts', allowInEditable: true },
+  { combo: 'Esc', action: 'Go back or close current screen', command: 'goBack', allowInEditable: true },
   { combo: 'Alt+G', action: 'Go To / quick search', command: 'commandPalette', allowInEditable: true },
   { combo: 'Ctrl+G', action: 'Switch To / quick search', command: 'commandPalette', allowInEditable: true },
   { combo: 'F2', action: 'Focus date or period field', command: 'focusDate', allowInEditable: true },

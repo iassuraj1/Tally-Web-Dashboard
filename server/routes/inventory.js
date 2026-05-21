@@ -5,8 +5,9 @@ const StockItem  = require('../models/StockItem');
 const Unit       = require('../models/Unit');
 const Godown     = require('../models/Godown');
 const Voucher    = require('../models/Voucher');
-const { getValuation, getBatchReport } = require('../services/stockMovementService');
+const { getValuation, getBatchReport, syncCompanyStockBalances, StockLevelError } = require('../services/stockMovementService');
 const { protect, companyAccess } = require('../middleware/auth');
+const { withTransaction } = require('../config/db');
 
 router.use(protect, companyAccess);
 
@@ -97,14 +98,40 @@ router.delete('/stock-groups/:id', async (req, res) => {
 // --- Stock Items ---
 router.get('/items', async (req, res) => {
   try {
-    const data = await StockItem.find({ company: req.params.companyId })
-      .populate('group', 'name').populate('unit', 'symbol').sort({ name: 1 });
+    const [items, valuation] = await Promise.all([
+      StockItem.find({ company: req.params.companyId })
+        .populate('group', 'name')
+        .populate('unit', 'symbol')
+        .sort({ name: 1 }),
+      getValuation(req.params.companyId),
+    ]);
+    const valuationByItem = new Map(valuation.map((row) => [String(row._id), row]));
+    const data = items.map((item) => {
+      const plain = item.toObject();
+      const row = valuationByItem.get(String(plain._id));
+      return {
+        ...plain,
+        currentQty: row ? row.closingQty : Number(plain.currentQty ?? plain.openingQty ?? 0),
+        currentRate: row ? row.closingRate : Number(plain.currentRate || 0),
+        currentValue: row ? row.closingValue : Number(plain.currentValue || 0),
+        inQty: row ? row.inQty : 0,
+        outQty: row ? row.outQty : 0,
+      };
+    });
     res.json({ success: true, data });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 router.post('/items', async (req, res) => {
   try {
-    const data = await StockItem.create({ ...req.body, company: req.params.companyId });
+    const openingQty = Number(req.body.openingQty || 0);
+    const openingRate = Number(req.body.openingRate || req.body.costPrice || req.body.standardCost || 0);
+    const data = await StockItem.create({
+      ...req.body,
+      company: req.params.companyId,
+      currentQty: openingQty,
+      currentRate: openingRate,
+      currentValue: openingQty * openingRate,
+    });
     res.status(201).json({ success: true, data });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -118,12 +145,27 @@ router.get('/items/:id', async (req, res) => {
 });
 router.put('/items/:id', async (req, res) => {
   try {
-    const data = await StockItem.findOneAndUpdate({ _id: req.params.id, company: req.params.companyId }, req.body, { new: true });
+    const data = await withTransaction(async () => {
+      const updated = await StockItem.findOneAndUpdate({ _id: req.params.id, company: req.params.companyId }, req.body, { new: true });
+      if (!updated) return null;
+      const valuation = await syncCompanyStockBalances(req.params.companyId);
+      const row = valuation.find((item) => String(item._id) === String(req.params.id));
+      if (row && Number(row.closingQty || 0) < 0) {
+        throw new StockLevelError(
+          `Cannot save "${updated.name}" because it would make stock negative (${row.closingQty}).`,
+          { itemId: req.params.id, itemName: updated.name, availableQty: row.closingQty }
+        );
+      }
+      return updated;
+    }, { isolationLevel: 'SERIALIZABLE' });
+    if (!data) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, data });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  } catch (err) { res.status(err.statusCode || 500).json({ success: false, message: err.message, code: err.code, details: err.details }); }
 });
 router.delete('/items/:id', async (req, res) => {
   try {
+    const used = await Voucher.countDocuments({ company: req.params.companyId, 'items.item': req.params.id });
+    if (used) return res.status(400).json({ success: false, message: `Stock item is used in ${used} voucher(s) and cannot be deleted.` });
     await StockItem.findOneAndDelete({ _id: req.params.id, company: req.params.companyId });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
@@ -140,7 +182,10 @@ router.get('/items/:id/movements', async (req, res) => {
       company: req.params.companyId,
       'items.item': req.params.id,
       isCancelled: false,
-      status: 'Approved',
+      $or: [
+        { status: { $in: ['Submitted', 'Approved'] } },
+        { status: { $exists: false } },
+      ],
     }).populate('party', 'name').sort({ date: 1, _id: 1 });
 
     let balance = item.openingQty || 0;
@@ -150,8 +195,8 @@ router.get('/items/:id/movements', async (req, res) => {
       for (const line of v.items) {
         if (line.item?.toString() !== req.params.id) continue;
         let inQty = 0, outQty = 0;
-        if (['Purchase', 'ReceiptNote'].includes(v.voucherType)) inQty = line.qty;
-        else if (['Sales', 'DeliveryNote'].includes(v.voucherType)) outQty = line.qty;
+        if (['Purchase', 'CreditNote', 'ReceiptNote'].includes(v.voucherType)) inQty = line.qty;
+        else if (['Sales', 'DebitNote', 'DeliveryNote'].includes(v.voucherType)) outQty = line.qty;
         else if (v.voucherType === 'StockJournal') inQty = line.qty;
         balance += inQty - outQty;
         movements.push({

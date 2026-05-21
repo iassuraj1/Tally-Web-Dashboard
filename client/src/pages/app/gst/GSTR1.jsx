@@ -12,7 +12,7 @@ const InvoiceTable = ({ rows, title }) => (
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-gray-50 border-b">
-            {['Date', 'Invoice No', 'Party', 'GSTIN', 'Place', 'Taxable', 'CGST', 'SGST', 'IGST', 'Total'].map((h) => (
+            {['Date', 'Invoice No', 'Party', 'GSTIN', 'Place', 'Taxable', 'CGST', 'SGST', 'UTGST', 'IGST', 'Total'].map((h) => (
               <th key={h} className="text-left px-4 py-2 text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -28,6 +28,7 @@ const InvoiceTable = ({ rows, title }) => (
               <td className="px-4 py-2.5 text-right font-mono">{fmt(r.taxable)}</td>
               <td className="px-4 py-2.5 text-right font-mono">{fmt(r.cgst)}</td>
               <td className="px-4 py-2.5 text-right font-mono">{fmt(r.sgst)}</td>
+              <td className="px-4 py-2.5 text-right font-mono">{fmt(r.utgst)}</td>
               <td className="px-4 py-2.5 text-right font-mono">{fmt(r.igst)}</td>
               <td className="px-4 py-2.5 text-right font-mono font-semibold">{fmt(r.total)}</td>
             </tr>
@@ -49,12 +50,13 @@ export default function GSTR1() {
         const s = res.summary || {};
         return (
           <div>
-            <div className="grid grid-cols-2 lg:grid-cols-5 divide-x border-b">
+            <div className="grid grid-cols-2 lg:grid-cols-6 divide-x border-b">
               {[
                 ['Invoices', s.invoiceCount],
                 ['Taxable Value', s.totalTaxable],
                 ['Total CGST', s.totalCGST],
                 ['Total SGST', s.totalSGST],
+                ['Total UTGST', s.totalUTGST],
                 ['Total IGST', s.totalIGST],
               ].map(([l, v]) => (
                 <div key={l} className="px-5 py-4 text-center">

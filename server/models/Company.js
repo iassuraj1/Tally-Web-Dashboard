@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const companySchema = new mongoose.Schema({
   owner:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -11,6 +11,7 @@ const companySchema = new mongoose.Schema({
   }],
   name:           { type: String, required: true, trim: true },
   legalName:      { type: String, trim: true },
+  industry:       { type: String, trim: true },
   gstin:          { type: String, trim: true },
   pan:            { type: String, trim: true },
   cin:            { type: String, trim: true },
@@ -22,12 +23,36 @@ const companySchema = new mongoose.Schema({
   phone:          { type: String },
   email:          { type: String },
   website:        { type: String },
+  addressLine2:   { type: String },
+  organizationLanguage: { type: String, default: 'English' },
+  communicationLanguage: { type: String, default: 'English' },
+  timeZone:       { type: String, default: '(GMT 5:30) India Standard Time (Asia/Kolkata)' },
+  dateFormat:     { type: String, default: 'dd/MM/yyyy [ 17/10/2025 ]' },
+  dateSeparator:  { type: String, default: '/' },
+  organizationProfileId: { type: String, trim: true, uppercase: true },
+  companyIdLabel: { type: String, default: 'Company ID :' },
+  companyIdValue: { type: String },
+  taxIdLabel:     { type: String, default: 'Tax ID :' },
+  taxIdValue:     { type: String },
+  taxBasis:       { type: String, enum: ['cash', 'accrual'], default: 'cash' },
+  additionalFields: [{
+    label: { type: String, trim: true },
+    value: { type: String, trim: true },
+  }],
+  userCustomFields: [{
+    fieldName: { type: String, trim: true },
+    dataType: { type: String, trim: true, default: 'Text' },
+    mandatory: { type: Boolean, default: false },
+    status: { type: String, trim: true, default: 'Active' },
+  }],
+  userCustomFieldLimit: { type: Number, default: 135 },
   currency:       { type: String, default: 'INR' },
   currencySymbol: { type: String, default: '₹' },
   branches: [{
     name: { type: String, trim: true },
     code: { type: String, trim: true },
     address: { type: String },
+    state: { type: String, trim: true },
     gstin: { type: String, trim: true },
     isDefault: { type: Boolean, default: false },
   }],
@@ -47,10 +72,25 @@ const companySchema = new mongoose.Schema({
   financialYearLockingEnabled: { type: Boolean, default: false },
   bookBeginning:  { type: Date },
   logo:           { type: String },
+  appearanceMode:  { type: String, enum: ['light', 'system', 'dark'], default: 'system' },
+  subscriptionPlan: { type: String, enum: ['free', 'standard', 'professional', 'premium'], default: 'free' },
+  subscriptionStatus: { type: String, enum: ['trial', 'active', 'past_due', 'cancelled'], default: 'trial' },
+  subscriptionBillingCycle: { type: String, enum: ['monthly', 'yearly'], default: 'monthly' },
+  subscriptionSeats: { type: Number, min: 1, default: 1 },
+  subscriptionTrialEndsAt: { type: Date, default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) },
+  subscriptionRenewalDate: { type: Date },
+  subscriptionBillingEmail: { type: String, trim: true },
+  subscriptionPaymentMethod: { type: String, enum: ['none', 'card', 'upi', 'bank_transfer'], default: 'none' },
+  subscriptionReference: { type: String, trim: true },
+  subscriptionLastPaymentStatus: { type: String, enum: ['none', 'paid', 'failed'], default: 'none' },
+  subscriptionLastPaymentAmount: { type: Number, min: 0, default: 0 },
+  subscriptionLastPaymentDate: { type: Date },
+  subscriptionCardLast4: { type: String, trim: true },
   isActive:       { type: Boolean, default: true },
 }, { timestamps: true });
 
 companySchema.index({ owner: 1, name: 1 });
 companySchema.index({ 'members.user': 1 });
+companySchema.index({ organizationProfileId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model('Company', companySchema);

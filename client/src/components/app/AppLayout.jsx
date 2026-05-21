@@ -119,6 +119,7 @@ const normalizeShortcut = (event) => {
   let key = event.key;
   if (!key) return '';
   if (key === ' ') key = 'Spacebar';
+  else if (key === 'Escape') key = 'Esc';
   else if (key.startsWith('Arrow')) key = `${key.replace('Arrow', '')} arrow`;
   else if (key.length === 1) key = key.toUpperCase();
 
@@ -133,6 +134,13 @@ const normalizeShortcut = (event) => {
 const focusDateField = () => {
   const dateField = document.querySelector('[data-shortcut-date], input[type="date"]');
   dateField?.focus();
+};
+
+const getEscapeFallbackPath = (pathname) => {
+  if (pathname === '/app') return null;
+  if (pathname.startsWith('/app/vouchers/') || pathname.startsWith('/app/invoice-print/')) return '/app/vouchers';
+  if (pathname.startsWith('/app/settings/')) return '/app/settings';
+  return '/app';
 };
 
 export default function AppLayout() {
@@ -157,6 +165,8 @@ export default function AppLayout() {
 
   useEffect(() => {
     const onKeyDown = (event) => {
+      if (event.defaultPrevented) return;
+
       const combo = normalizeShortcut(event);
       const shortcut = APP_TALLY_SHORTCUTS.find((item) => item.combo === combo);
       if (!shortcut) return;
@@ -179,6 +189,36 @@ export default function AppLayout() {
         return;
       }
 
+      if (shortcut.command === 'goBack') {
+        if (commandOpen) {
+          event.preventDefault();
+          setCommandOpen(false);
+          return;
+        }
+
+        if (quickCreateOpen) {
+          event.preventDefault();
+          setQuickCreateOpen(false);
+          return;
+        }
+
+        if (sidebarOpen) {
+          event.preventDefault();
+          setSidebarOpen(false);
+          return;
+        }
+
+        if (document.querySelector('[data-app-modal="true"]')) return;
+
+        const fallbackPath = getEscapeFallbackPath(location.pathname);
+        if (!fallbackPath) return;
+
+        event.preventDefault();
+        if ((window.history.state?.idx || 0) > 0) navigate(-1);
+        else navigate(fallbackPath);
+        return;
+      }
+
       event.preventDefault();
       if (shortcut.command === 'commandPalette') {
         setCommandOpen(true);
@@ -197,7 +237,7 @@ export default function AppLayout() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [navigate]);
+  }, [commandOpen, location.pathname, navigate, quickCreateOpen, sidebarOpen]);
 
   if (loading) {
     return (

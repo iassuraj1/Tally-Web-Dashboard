@@ -309,14 +309,14 @@ export default function Dashboard() {
   ];
 
   const statCards = [
-    { label: 'Cash and Bank', value: fmt(summary?.cashBankBalance), sub: 'Available balance', color: 'border-sky-400', icon: FiCreditCard, iconColor: 'text-sky-500' },
-    { label: 'Receivables', value: fmt(summary?.receivables), sub: 'Customer outstanding', color: 'border-orange-400', icon: FiUsers, iconColor: 'text-orange-500' },
-    { label: 'Payables', value: fmt(summary?.payables), sub: 'Vendor outstanding', color: 'border-violet-400', icon: FiFileText, iconColor: 'text-violet-500' },
-    { label: 'Sales This Month', value: fmt(summary?.salesThisMonth), sub: 'Approved sales', color: 'border-emerald-400', icon: FiTrendingUp, iconColor: 'text-emerald-500' },
-    { label: 'Purchases This Month', value: fmt(summary?.purchasesThisMonth), sub: 'Approved purchases', color: 'border-blue-400', icon: FiShoppingCart, iconColor: 'text-blue-500' },
-    { label: 'Profit Estimate', value: fmt(summary?.profitEstimate), sub: 'Current FY', color: 'border-lime-400', icon: FiBarChart2, iconColor: 'text-lime-600' },
-    { label: 'GST Payable', value: fmt(summary?.gstPayable), sub: 'This month', color: 'border-red-400', icon: FiShield, iconColor: 'text-red-500' },
-    { label: 'Pending Approvals', value: summary?.pendingApprovals || 0, sub: 'Submitted vouchers', color: 'border-slate-400', icon: FiClock, iconColor: 'text-slate-500' },
+    { label: 'Cash and Bank', value: fmt(summary?.cashBankBalance), sub: 'Available balance', href: '/app/reports/cash-flow', color: 'border-sky-400', icon: FiCreditCard, iconColor: 'text-sky-500' },
+    { label: 'Receivables', value: fmt(summary?.receivables), sub: 'Customer outstanding', href: '/app/reports/receivables', color: 'border-orange-400', icon: FiUsers, iconColor: 'text-orange-500' },
+    { label: 'Payables', value: fmt(summary?.payables), sub: 'Vendor outstanding', href: '/app/reports/payables', color: 'border-violet-400', icon: FiFileText, iconColor: 'text-violet-500' },
+    { label: 'Sales This Month', value: fmt(summary?.salesThisMonth), sub: 'Approved sales', href: '/app/vouchers?type=Sales', color: 'border-emerald-400', icon: FiTrendingUp, iconColor: 'text-emerald-500' },
+    { label: 'Purchases This Month', value: fmt(summary?.purchasesThisMonth), sub: 'Approved purchases', href: '/app/vouchers?type=Purchase', color: 'border-blue-400', icon: FiShoppingCart, iconColor: 'text-blue-500' },
+    { label: 'Profit Estimate', value: fmt(summary?.profitEstimate), sub: 'Current FY', href: '/app/reports/profit-loss', color: 'border-lime-400', icon: FiBarChart2, iconColor: 'text-lime-600' },
+    { label: 'GST Payable', value: fmt(summary?.gstPayable), sub: 'This month', href: '/app/gst/gstr3b', color: 'border-red-400', icon: FiShield, iconColor: 'text-red-500' },
+    { label: 'Pending Approvals', value: summary?.pendingApprovals || 0, sub: 'Submitted vouchers', href: '/app/vouchers/approvals', color: 'border-slate-400', icon: FiClock, iconColor: 'text-slate-500' },
   ];
 
   const recentVouchers = summary?.recentVouchers || [];
@@ -329,16 +329,21 @@ export default function Dashboard() {
     <div className="min-w-0 max-w-full space-y-6">
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
         {statCards.map((card) => (
-          <div key={card.label} className={`min-w-0 bg-white rounded-lg border border-gray-100 border-l-4 ${card.color} p-4 shadow-sm min-h-32`}>
+          <Link
+            key={card.label}
+            to={card.href}
+            aria-label={`Open ${card.label}`}
+            className={`group min-w-0 bg-white rounded-lg border border-gray-100 border-l-4 ${card.color} p-4 shadow-sm min-h-32 transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#003087] focus:ring-offset-2`}
+          >
             <div className={`${card.iconColor} mb-3`}>
               <card.icon size={18} />
             </div>
             <div className="text-lg font-bold text-gray-900 leading-tight break-words">
               {loading ? '-' : card.value}
             </div>
-            <div className="text-xs text-gray-500 mt-2">{card.label}</div>
+            <div className="text-xs text-gray-500 mt-2 group-hover:text-[#003087]">{card.label}</div>
             <div className="text-xs text-gray-400">{card.sub}</div>
-          </div>
+          </Link>
         ))}
       </div>
 

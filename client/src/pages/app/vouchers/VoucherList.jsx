@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useCompany } from '../../../context/useCompany';
 import api from '../../../utils/api';
-import { FiDownload, FiEye, FiXCircle, FiPlus } from 'react-icons/fi';
+import { FiDownload, FiEdit2, FiEye, FiXCircle, FiPlus } from 'react-icons/fi';
 
 const fmt     = (n) => n ? `₹${Number(n).toLocaleString('en-IN')}` : '—';
 const fmtDate = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -11,16 +11,30 @@ const TYPES = ['Sales','Purchase','Payment','Receipt','Journal','Contra','Credit
 const typeColor = { Sales:'bg-green-100 text-green-700', Purchase:'bg-blue-100 text-blue-700', Payment:'bg-red-100 text-red-700', Receipt:'bg-yellow-100 text-yellow-700', Journal:'bg-gray-100 text-gray-600', Contra:'bg-purple-100 text-purple-700', CreditNote:'bg-orange-100 text-orange-700', DebitNote:'bg-pink-100 text-pink-700', StockJournal:'bg-cyan-100 text-cyan-700', DeliveryNote:'bg-emerald-100 text-emerald-700', ReceiptNote:'bg-indigo-100 text-indigo-700' };
 const voucherPath = { Sales:'sales', Purchase:'purchase', Payment:'payment', Receipt:'receipt', Journal:'journal', Contra:'contra', CreditNote:'credit-note', DebitNote:'debit-note', StockJournal:'stock-journal', DeliveryNote:'sales', ReceiptNote:'purchase' };
 const eInvoiceTypes = new Set(['Sales', 'Purchase', 'CreditNote', 'DebitNote']);
+const printableInvoiceTypes = new Set(['Sales', 'Purchase', 'CreditNote', 'DebitNote']);
 
 export default function VoucherList() {
   const { company } = useCompany();
+  const [searchParams] = useSearchParams();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading]   = useState(true);
-  const [typeFilter, setTypeFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [includeCancelled, setIncludeCancelled] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo,   setDateTo]   = useState('');
+  const [typeFilter, setTypeFilter] = useState(() => {
+    const type = searchParams.get('type') || '';
+    return TYPES.includes(type) ? type : '';
+  });
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
+  const [includeCancelled, setIncludeCancelled] = useState(() => searchParams.get('includeCancelled') === 'true');
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get('from') || '');
+  const [dateTo,   setDateTo]   = useState(() => searchParams.get('to') || '');
+
+  useEffect(() => {
+    const type = searchParams.get('type') || '';
+    setTypeFilter(TYPES.includes(type) ? type : '');
+    setStatusFilter(searchParams.get('status') || '');
+    setIncludeCancelled(searchParams.get('includeCancelled') === 'true');
+    setDateFrom(searchParams.get('from') || '');
+    setDateTo(searchParams.get('to') || '');
+  }, [searchParams]);
 
   const load = () => {
     if (!company) return;
@@ -99,7 +113,13 @@ export default function VoucherList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {vouchers.map(v => (
+              {vouchers.map(v => {
+                const editPath = `/app/vouchers/${voucherPath[v.voucherType] || 'sales'}?edit=${v._id}`;
+                const invoicePath = `/app/invoice-print/${v._id}`;
+                const hasPrintableInvoice = printableInvoiceTypes.has(v.voucherType);
+                const viewPath = hasPrintableInvoice ? invoicePath : editPath;
+
+                return (
                 <tr key={v._id} className={`hover:bg-gray-50 ${v.isCancelled ? 'opacity-50' : ''}`}>
                   <td className="px-4 py-3"><span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${typeColor[v.voucherType] || 'bg-gray-100'}`}>{v.voucherType}</span></td>
                   <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{v.voucherNo}</td>
@@ -121,11 +141,14 @@ export default function VoucherList() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <Link to={`/app/vouchers/${voucherPath[v.voucherType]}?edit=${v._id}`} className="p-1.5 text-gray-400 hover:text-[#003087] hover:bg-blue-50 rounded-lg">
+                      <Link to={viewPath} title={hasPrintableInvoice ? 'View invoice' : 'View voucher'} className="p-1.5 text-gray-400 hover:text-[#003087] hover:bg-blue-50 rounded-lg">
                         <FiEye size={14} />
                       </Link>
-                      {v.voucherType === 'Sales' && (
-                        <Link to={`/app/invoice-print/${v._id}`} className="px-2 py-1 text-xs text-gray-500 hover:text-[#003087] hover:bg-blue-50 rounded-lg">
+                      <Link to={editPath} title="Edit voucher" className="p-1.5 text-gray-400 hover:text-[#003087] hover:bg-blue-50 rounded-lg">
+                        <FiEdit2 size={14} />
+                      </Link>
+                      {hasPrintableInvoice && (
+                        <Link to={invoicePath} className="px-2 py-1 text-xs text-gray-500 hover:text-[#003087] hover:bg-blue-50 rounded-lg">
                           Print
                         </Link>
                       )}
@@ -142,7 +165,8 @@ export default function VoucherList() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

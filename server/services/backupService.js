@@ -15,6 +15,7 @@ const StockItem = require('../models/StockItem');
 const Unit = require('../models/Unit');
 const Voucher = require('../models/Voucher');
 const WebhookEndpoint = require('../models/WebhookEndpoint');
+const { syncCompanyStockBalances } = require('./stockMovementService');
 
 const omit = (source, keys) => Object.fromEntries(
   Object.entries(source || {}).filter(([key]) => !keys.includes(key))
@@ -263,6 +264,9 @@ const restoreCompanyBackup = async (companyId, backup, options = {}) => {
     }
   }
   results.vouchers = { imported: vouchersImported, errors: voucherErrors };
+  if (vouchersImported > 0) {
+    await syncCompanyStockBalances(companyId);
+  }
 
   let payrollImported = 0;
   const payrollErrors = [];

@@ -4,6 +4,7 @@ import { useCompany } from '../../../context/useCompany';
 import api, { getApiError } from '../../../utils/api';
 import Modal from '../../../components/app/Modal';
 import { FiPlus, FiRefreshCw, FiSearch, FiArrowRight, FiEdit2, FiEye, FiFileText, FiTrash2, FiX } from 'react-icons/fi';
+import { GST_STATES, getGstTaxType, splitGstAmount } from '../../../data/gstStates';
 
 const GST_RATES = [0, 5, 12, 18, 28];
 const salesTypes = ['Estimate', 'SalesOrder', 'DeliveryNote'];
@@ -25,7 +26,7 @@ const statusClass = {
   cancelled: 'bg-red-100 text-red-600',
 };
 
-const emptyLine = { item: '', description: '', qty: 1, unit: '', rate: 0, discount: 0, gstRate: 0, amount: 0, hsnCode: '', godown: '' };
+const emptyLine = { item: '', description: '', qty: 1, unit: '', rate: 0, discount: 0, gstRate: 0, amount: 0, hsnCode: '', cgst: 0, sgst: 0, utgst: 0, igst: 0, godown: '' };
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt = (n) => `Rs ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
@@ -62,23 +63,35 @@ const nextTargets = (doc) => {
   return [];
 };
 
-function DocumentForm({ form, setForm, flow, parties, items, units, error }) {
+const recalcLineTaxes = (line, taxType) => {
+  const amount = Number(line.qty || 0) * Number(line.rate || 0) - Number(line.discount || 0);
+  return { ...line, amount, ...splitGstAmount(amount, line.gstRate, taxType) };
+};
+
+const recalcDocumentLines = (lines = [], taxType) => lines.map((line) => recalcLineTaxes(line, taxType));
+
+function DocumentForm({ form, setForm, flow, parties, items, units, error, company }) {
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const taxType = getGstTaxType(company?.state, form.placeOfSupply || company?.state);
+  const taxTypeLabel = taxType === 'IGST' ? 'IGST' : taxType === 'UTGST' ? 'CGST + UTGST' : 'CGST + SGST';
   const updateLine = (index, key, value) => {
     setForm((f) => {
       const next = [...f.items];
       next[index] = { ...next[index], [key]: value };
-      const line = next[index];
-      const amount = Number(line.qty || 0) * Number(line.rate || 0) - Number(line.discount || 0);
-      const gst = Number(line.gstRate || 0) / 100;
-      next[index] = {
-        ...line,
-        amount,
-        igst: f.isIGST ? amount * gst : 0,
-        cgst: f.isIGST ? 0 : amount * gst / 2,
-        sgst: f.isIGST ? 0 : amount * gst / 2,
-      };
+      const nextTaxType = getGstTaxType(company?.state, f.placeOfSupply || company?.state);
+      next[index] = recalcLineTaxes(next[index], nextTaxType);
       return { ...f, items: next };
+    });
+  };
+  const setPlaceOfSupply = (placeOfSupply) => {
+    setForm((f) => {
+      const nextTaxType = getGstTaxType(company?.state, placeOfSupply || company?.state);
+      return {
+        ...f,
+        placeOfSupply,
+        isIGST: nextTaxType === 'IGST',
+        items: recalcDocumentLines(f.items, nextTaxType),
+      };
     });
   };
 
@@ -119,19 +132,24 @@ function DocumentForm({ form, setForm, flow, parties, items, units, error }) {
               billingAddress: party?.billingAddress || party?.address || '',
               shippingAddress: party?.shippingAddress || party?.address || '',
               placeOfSupply: party?.state || f.placeOfSupply,
+              isIGST: getGstTaxType(company?.state, party?.state || f.placeOfSupply || company?.state) === 'IGST',
+              items: recalcDocumentLines(f.items, getGstTaxType(company?.state, party?.state || f.placeOfSupply || company?.state)),
             }));
           }} className={`${input} bg-white`}>
             <option value="">Select party</option>
-            {parties.map((party) => <option key={party._id} value={party._id}>{party.name}</option>)}
+            {parties.map((party) => <option key={party._id} value={party._id}>{party.name}{party.state ? ` - ${party.state}` : ''}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Place of Supply</label>
-          <input value={form.placeOfSupply} onChange={(e) => set('placeOfSupply', e.target.value)} className={input} />
+          <select value={form.placeOfSupply} onChange={(e) => setPlaceOfSupply(e.target.value)} className={`${input} bg-white`}>
+            <option value="">Select state / UT</option>
+            {GST_STATES.map((state) => <option key={state.code} value={state.name}>{state.code} - {state.name}</option>)}
+          </select>
         </div>
-        <label className="flex items-center gap-2 text-sm pt-6">
-          <input type="checkbox" checked={form.isIGST} onChange={(e) => set('isIGST', e.target.checked)} /> IGST
-        </label>
+        <div className="pt-6">
+          <span className="inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-[#003087]">{taxTypeLabel}</span>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -199,7 +217,7 @@ function DocumentView({ doc }) {
           ['Reference', doc.reference || '-'],
           ['Party', doc.party?.name || '-'],
           ['Place of Supply', doc.placeOfSupply || '-'],
-          ['Tax Type', doc.isIGST ? 'IGST' : 'CGST + SGST'],
+          ['Tax Type', doc.isIGST ? 'IGST' : Number(doc.totalUTGST || 0) > 0 ? 'CGST + UTGST' : 'CGST + SGST'],
           ['Status', doc.status || '-'],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
@@ -266,6 +284,7 @@ function DocumentView({ doc }) {
           ['Subtotal', doc.subtotal],
           ['CGST', doc.totalCGST],
           ['SGST', doc.totalSGST],
+          ['UTGST', doc.totalUTGST],
           ['IGST', doc.totalIGST],
           ['Round off', doc.roundOff],
         ].map(([label, value]) => (
@@ -528,7 +547,7 @@ export default function WorkflowDocuments({ flow = 'sales' }) {
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editing ? `Edit ${editing.documentNo}` : `New ${title} Document`} size="lg">
         {form && (
           <form onSubmit={save}>
-            <DocumentForm form={form} setForm={setForm} flow={flow} parties={parties} items={items} units={units} error={error} />
+            <DocumentForm form={form} setForm={setForm} flow={flow} parties={parties} items={items} units={units} error={error} company={company} />
             <div className="flex justify-end gap-3 pt-5 mt-5 border-t border-gray-100">
               <button type="button" onClick={() => setModal(false)} className="px-4 py-2.5 text-sm border border-gray-200 rounded-lg">Cancel</button>
               <button type="submit" disabled={saving} className="px-5 py-2.5 bg-[#003087] text-white text-sm font-semibold rounded-lg disabled:opacity-60">{saving ? 'Saving...' : 'Save Document'}</button>

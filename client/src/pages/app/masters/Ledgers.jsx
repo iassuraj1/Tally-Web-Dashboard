@@ -8,6 +8,7 @@ import {
   FiX, FiAlertCircle,
   FiChevronRight, FiRefreshCw, FiBookOpen,
 } from 'react-icons/fi';
+import { GST_STATES, getGstStateFromGstin } from '../../../data/gstStates';
 
 /* ── helpers ─────────────────────────────────────── */
 const fmt = (n) =>
@@ -22,6 +23,7 @@ const NATURE_COLORS = {
 };
 const NATURE_TABS = ['All', 'Assets', 'Liabilities', 'Income', 'Expenses'];
 const GST_TYPES   = ['Regular', 'Composition', 'Unregistered', 'Consumer', 'Overseas', ''];
+const MAIN_ROOT_GROUP_NAMES = ['Sales Accounts', 'Purchase Accounts'];
 
 function InfoRow({ label, value }) {
   return value ? (
@@ -63,13 +65,31 @@ function LedgerForm({ form, setForm, groups, err }) {
     { id: 'statutory', label: 'Statutory'    },
   ];
   const natures = ['Assets', 'Liabilities', 'Income', 'Expenses'];
+  const mainRootGroups = MAIN_ROOT_GROUP_NAMES
+    .map((name) => groups.find((group) => group.name === name))
+    .filter(Boolean);
+  const mainRootGroupIds = new Set(mainRootGroups.map((group) => String(group._id)));
+  const groupsByNature = natures.map((nature) => ({
+    nature,
+    groups: groups.filter((group) => group.nature === nature && !mainRootGroupIds.has(String(group._id))),
+  }));
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const parseNumber = (value) => (value === '' ? 0 : Number(value));
+  const selectZeroOnFocus = (event) => {
+    if (Number(event.target.value) === 0) event.target.select();
+  };
+  const setGstin = (value) => {
+    const gstin = value.toUpperCase();
+    const state = getGstStateFromGstin(gstin)?.name;
+    setForm((f) => ({ ...f, gstin, gstApplicable: Boolean(gstin) || f.gstApplicable, state: state || f.state }));
+  };
   const inp = (k, opts = {}) => (
     <input
       type={opts.type || 'text'}
       step={opts.step}
       value={form[k] ?? ''}
-      onChange={e => set(k, opts.type === 'number' ? +e.target.value : e.target.value)}
+      onFocus={opts.type === 'number' ? selectZeroOnFocus : undefined}
+      onChange={e => set(k, opts.type === 'number' ? parseNumber(e.target.value) : e.target.value)}
       placeholder={opts.placeholder || ''}
       className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]"
     />
@@ -116,12 +136,17 @@ function LedgerForm({ form, setForm, groups, err }) {
               <select required value={form.group} onChange={e => set('group', e.target.value)}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
                 <option value="">— Select group —</option>
-                {natures.map(n => (
-                  <optgroup key={n} label={n}>
-                    {groups.filter(g => g.nature === n).map(g => (
-                      <option key={g._id} value={g._id}>{g.name}</option>
-                    ))}
-                  </optgroup>
+                {mainRootGroups.map(g => (
+                  <option key={g._id} value={g._id}>{g.name}</option>
+                ))}
+                {groupsByNature.map(({ nature, groups: natureGroups }) => (
+                  natureGroups.length > 0 && (
+                    <optgroup key={nature} label={nature}>
+                      {natureGroups.map(g => (
+                        <option key={g._id} value={g._id}>{g.name}</option>
+                      ))}
+                    </optgroup>
+                  )
                 ))}
               </select>
             </div>
@@ -130,7 +155,8 @@ function LedgerForm({ form, setForm, groups, err }) {
               {lbl('Opening Balance')}
               <div className="flex gap-2">
                 <input type="number" step="0.01" min="0" value={form.openingBalance}
-                  onChange={e => set('openingBalance', +e.target.value)}
+                  onFocus={selectZeroOnFocus}
+                  onChange={e => set('openingBalance', parseNumber(e.target.value))}
                   className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
                 <select value={form.openingBalanceType} onChange={e => set('openingBalanceType', e.target.value)}
                   className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
@@ -163,6 +189,12 @@ function LedgerForm({ form, setForm, groups, err }) {
             </div>
 
             <div className="sm:col-span-2">
+              {lbl('Address')}
+              <textarea rows={2} value={form.address} onChange={e => set('address', e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#003087]" />
+            </div>
+
+            <div className="sm:col-span-2">
               {lbl('Internal Notes')}
               <textarea rows={2} value={form.notes} onChange={e => set('notes', e.target.value)}
                 placeholder="Optional internal notes…"
@@ -187,7 +219,7 @@ function LedgerForm({ form, setForm, groups, err }) {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               {lbl('GSTIN / UIN')}
-              <input value={form.gstin} onChange={e => set('gstin', e.target.value.toUpperCase())}
+              <input value={form.gstin} onChange={e => setGstin(e.target.value)}
                 placeholder="22AAAAA0000A1Z5" maxLength={15}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#003087]" />
             </div>
@@ -200,9 +232,9 @@ function LedgerForm({ form, setForm, groups, err }) {
             </div>
             <div>
               {lbl('Tax Rate %')}
-              <input type="number" step="0.01" value={form.taxRate} onChange={e => set('taxRate', +e.target.value)}
+              <input type="number" step="0.01" value={form.taxRate} onFocus={selectZeroOnFocus} onChange={e => set('taxRate', parseNumber(e.target.value))}
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#003087]" />
-              <p className="text-xs text-gray-400 mt-1">For tax ledgers (CGST, SGST, etc.) — set the rate here</p>
+              <p className="text-xs text-gray-400 mt-1">For tax ledgers (CGST, SGST, UTGST, IGST, etc.) — set the rate here</p>
             </div>
           </div>
         </div>
@@ -221,7 +253,16 @@ function LedgerForm({ form, setForm, groups, err }) {
             { k: 'email',   l: 'Email',   t: 'email' },
             { k: 'website', l: 'Website'    },
           ].map(({ k, l, t }) => (
-            <div key={k}>{lbl(l)}{inp(k, { type: t || 'text' })}</div>
+            <div key={k}>
+              {lbl(k === 'state' ? 'State / UT' : l)}
+              {k === 'state' ? (
+                <select value={form.state || ''} onChange={e => set('state', e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#003087]">
+                  <option value="">Select state / UT</option>
+                  {GST_STATES.map((state) => <option key={state.code} value={state.name}>{state.code} - {state.name}</option>)}
+                </select>
+              ) : inp(k, { type: t || 'text' })}
+            </div>
           ))}
         </div>
       )}

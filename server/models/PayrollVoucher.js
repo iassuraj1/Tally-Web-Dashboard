@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const payrollLineSchema = new mongoose.Schema({
   payHead: { type: mongoose.Schema.Types.ObjectId, ref: 'PayHead', required: true },

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 // Mirror of Tally's Account Groups hierarchy
 const groupSchema = new mongoose.Schema({

@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require('../lib/postgresMongoose');
 
 const reconSchema = new mongoose.Schema({
   company:    { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
